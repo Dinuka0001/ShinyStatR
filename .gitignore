@@ -1,0 +1,25 @@
+# R files
+.Rhistory
+.Rdata
+.RData
+.Ruserdata
+.Rproj.user/
+
+# Shiny
+rsconnect/
+
+# IDE
+*.code-workspace
+.vscode/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Backup folder (development only)
+BackUp/
+Gemini/
+
+# Misc
+info.txt
+*.log
