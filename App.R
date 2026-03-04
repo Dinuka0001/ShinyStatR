@@ -97,6 +97,13 @@ table.dataTable thead th { background: #3c8dbc; color: #fff; font-weight: 600; }
 .plot-options { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
 .plot-options .form-group { margin-bottom: 8px; }
 
+/* Plot summary text */
+#plot_summary_text {
+  background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 6px;
+  padding: 12px 15px; font-size: 13px; font-family: 'Consolas', 'Courier New', monospace;
+  color: #2c3e50; white-space: pre-wrap; word-wrap: break-word; min-height: 40px;
+}
+
 /* Sidebar */
 .sidebar-menu > li > a { font-size: 14px; }
 .sidebar-menu > li.active > a { border-left: 4px solid #fff; }
@@ -182,10 +189,10 @@ ui <- dashboardPage(
      tags$style(HTML(app_css)),
      tags$script(HTML("
        Shiny.addCustomMessageHandler('resizePlotContainer', function(msg) {
-         var el = document.getElementById('main_plot');
-         if (el) {
-           el.style.height = msg.height + 'px';
-         }
+         var wrapper = document.getElementById('main_plot_wrapper');
+         var plotEl = document.getElementById('main_plot');
+         if (wrapper) { wrapper.style.height = msg.height + 'px'; }
+         if (plotEl) { plotEl.style.height = msg.height + 'px'; }
        });
        // Disable header options in dropdowns with header_ values
        $(document).on('shiny:connected', function() {
@@ -1017,7 +1024,10 @@ ui <- dashboardPage(
                )
              ),
              hr(),
-             plotOutput("main_plot", height = "576px", width = "100%"),
+             div(id = "main_plot_wrapper",
+               style = "width: 100%; min-height: 400px; position: relative;",
+               plotOutput("main_plot", height = "576px", width = "100%")
+             ),
              hr(),
              verbatimTextOutput("plot_summary_text")
            )
@@ -3169,15 +3179,19 @@ server <- function(input, output, session) {
        Min = min(x, na.rm = TRUE),
        Max = max(x, na.rm = TRUE),
        Skewness = {
-         n <- length(x); m <- mean(x)
-         s <- sd(x)
-         (n / ((n - 1) * (n - 2))) * sum(((x - m) / s)^3)
+         n <- length(x)
+         if (n < 3) NA_real_ else {
+           m <- mean(x); s <- sd(x)
+           (n / ((n - 1) * (n - 2))) * sum(((x - m) / s)^3)
+         }
        },
        Kurtosis = {
-         n <- length(x); m <- mean(x)
-         s <- sd(x)
-         (n * (n + 1) / ((n - 1) * (n - 2) * (n - 3))) * sum(((x - m) / s)^4) -
-           3 * (n - 1)^2 / ((n - 2) * (n - 3))
+         n <- length(x)
+         if (n < 4) NA_real_ else {
+           m <- mean(x); s <- sd(x)
+           (n * (n + 1) / ((n - 1) * (n - 2) * (n - 3))) * sum(((x - m) / s)^4) -
+             3 * (n - 1)^2 / ((n - 2) * (n - 3))
+         }
        },
        stringsAsFactors = FALSE
      )
@@ -3400,40 +3414,40 @@ server <- function(input, output, session) {
      }
      
    } else if (pt == "bar" || pt == "bar_sd") {
-     err_type <- ifelse(pt == "bar", "se", "sd")
-     summ <- df %>%
-       group_by(group) %>%
-       summarise(
-         mean_val = mean(value, na.rm = TRUE),
-         sd_val = sd(value, na.rm = TRUE),
-         se_val = sd(value, na.rm = TRUE) / sqrt(n()),
-         .groups = "drop"
-       )
-     summ$err <- if (err_type == "se") summ$se_val else summ$sd_val
+     # Use stat_summary on raw df so p always has raw data (fixes significance)
+     err_fun <- if (pt == "bar") {
+       mean_se
+     } else {
+       function(x, ...) {
+         m <- mean(x, na.rm = TRUE); s <- sd(x, na.rm = TRUE)
+         data.frame(y = m, ymin = m - s, ymax = m + s)
+       }
+     }
+     eb_w <- if (!is.null(input$plot_errorbar_width)) input$plot_errorbar_width else 0.2
      
      if (input$plot_use_group_colors) {
        if (!is.null(border_cols)) {
-         p <- ggplot(summ, aes(x = group, y = mean_val,
-             fill = group, color = group)) +
-           geom_col(width = width, alpha = alpha, linewidth = lw) +
-           geom_errorbar(aes(ymin = mean_val - err, ymax = mean_val + err),
-             width = input$plot_errorbar_width, linewidth = lw)
+         p <- p +
+           stat_summary(fun = mean, geom = "col", aes(color = group),
+             width = width, alpha = alpha, linewidth = lw) +
+           stat_summary(fun.data = err_fun, geom = "errorbar",
+             aes(color = group), width = eb_w, linewidth = lw)
        } else {
-         p <- ggplot(summ, aes(x = group, y = mean_val, fill = group)) +
-           geom_col(width = width, alpha = alpha, color = border_col,
+         p <- p +
+           stat_summary(fun = mean, geom = "col",
+             width = width, alpha = alpha, color = border_col,
              linewidth = lw) +
-           geom_errorbar(aes(ymin = mean_val - err, ymax = mean_val + err),
-             width = input$plot_errorbar_width, linewidth = lw,
-             color = border_col)
+           stat_summary(fun.data = err_fun, geom = "errorbar",
+             width = eb_w, linewidth = lw, color = border_col)
        }
      } else {
-       p <- ggplot(summ, aes(x = group, y = mean_val)) +
-         geom_col(width = width, alpha = alpha,
+       p <- p +
+         stat_summary(fun = mean, geom = "col",
+           width = width, alpha = alpha,
            fill = input$plot_fill_color,
            color = border_col, linewidth = lw) +
-         geom_errorbar(aes(ymin = mean_val - err, ymax = mean_val + err),
-           width = input$plot_errorbar_width, linewidth = lw,
-           color = border_col)
+         stat_summary(fun.data = err_fun, geom = "errorbar",
+           width = eb_w, linewidth = lw, color = border_col)
      }
      
    } else if (pt == "box_jitter") {
@@ -3485,33 +3499,31 @@ server <- function(input, output, session) {
      }
      
    } else if (pt == "mean_dot") {
-     summ <- df %>%
-       group_by(group) %>%
-       summarise(
-         mean_val = mean(value, na.rm = TRUE),
-         sd_val = sd(value, na.rm = TRUE),
-         .groups = "drop"
-       )
+     # Use stat_summary on raw df so p always has raw data (fixes significance)
+     sd_err_fun <- function(x, ...) {
+       m <- mean(x, na.rm = TRUE); s <- sd(x, na.rm = TRUE)
+       data.frame(y = m, ymin = m - s, ymax = m + s)
+     }
      if (input$plot_use_group_colors) {
        if (!is.null(border_cols)) {
-         p <- ggplot(summ, aes(x = group, y = mean_val,
-             fill = group, color = group)) +
-           geom_point(size = ps * 2) +
-           geom_errorbar(aes(ymin = mean_val - sd_val,
-             ymax = mean_val + sd_val), width = 0.2, linewidth = lw)
+         p <- p +
+           stat_summary(fun = mean, geom = "point", aes(color = group),
+             size = ps * 2) +
+           stat_summary(fun.data = sd_err_fun, geom = "errorbar",
+             aes(color = group), width = 0.2, linewidth = lw)
        } else {
-         p <- ggplot(summ, aes(x = group, y = mean_val, fill = group)) +
-           geom_point(size = ps * 2, color = border_col) +
-           geom_errorbar(aes(ymin = mean_val - sd_val,
-             ymax = mean_val + sd_val), width = 0.2, linewidth = lw,
-             color = border_col)
+         p <- p +
+           stat_summary(fun = mean, geom = "point",
+             size = ps * 2, color = border_col) +
+           stat_summary(fun.data = sd_err_fun, geom = "errorbar",
+             width = 0.2, linewidth = lw, color = border_col)
        }
      } else {
-       p <- ggplot(summ, aes(x = group, y = mean_val)) +
-         geom_point(size = ps * 2, color = input$plot_point_color) +
-         geom_errorbar(aes(ymin = mean_val - sd_val,
-           ymax = mean_val + sd_val), width = 0.2, linewidth = lw,
-           color = border_col)
+       p <- p +
+         stat_summary(fun = mean, geom = "point",
+           size = ps * 2, color = input$plot_point_color) +
+         stat_summary(fun.data = sd_err_fun, geom = "errorbar",
+           width = 0.2, linewidth = lw, color = border_col)
      }
      
    } else if (pt == "histogram") {
@@ -3614,47 +3626,60 @@ server <- function(input, output, session) {
    }
    
    # === Significance bars ===
+   # All plot types now use raw df with aes(x=group, y=value), so
+   # stat_compare_means inherits correct data and mapping.
    if (input$plot_show_signif &&
        !(pt %in% c("histogram", "density", "qq"))) {
-     method <- input$plot_signif_method
-     label <- input$plot_signif_label
-     
-     # Map extended method names to stat_compare_means compatible methods
-     scm_method <- switch(method,
-       "t.test.pooled" = "t.test",
-       "t.test"        = "t.test",
-       "wilcox.test"   = "wilcox.test",
-       "anova"         = "anova",
-       "kruskal.test"  = "kruskal.test",
-       "t.test"  # default fallback
-     )
-     scm_args <- list()
-     if (method == "t.test.pooled") {
-       scm_args <- list(method.args = list(var.equal = TRUE))
-     }
-     
-     if (scm_method %in% c("t.test", "wilcox.test")) {
-       groups <- levels(df$group)
-       if (length(groups) >= 2) {
-         comps <- combn(groups, 2, simplify = FALSE)
-         scm_call <- c(list(
-           method = scm_method,
-           comparisons = comps,
-           label = label,
-           step.increase = input$plot_signif_step,
-           size = input$plot_signif_text_size
-         ), scm_args)
-         p <- p + do.call(stat_compare_means, scm_call)
+     tryCatch({
+       method <- input$plot_signif_method
+       label <- input$plot_signif_label
+       
+       # Skip disabled header selections
+       if (!is.null(method) && !grepl("^header_", method)) {
+         scm_method <- switch(method,
+           "t.test.pooled" = "t.test",
+           "t.test"        = "t.test",
+           "wilcox.test"   = "wilcox.test",
+           "anova"         = "anova",
+           "kruskal.test"  = "kruskal.test",
+           "t.test"
+         )
+         
+         if (scm_method %in% c("t.test", "wilcox.test")) {
+           groups <- levels(df$group)
+           if (length(groups) >= 2) {
+             comps <- combn(groups, 2, simplify = FALSE)
+             if (method == "t.test.pooled") {
+               p <- p + stat_compare_means(
+                 method = scm_method,
+                 comparisons = comps,
+                 label = label,
+                 step.increase = input$plot_signif_step,
+                 size = input$plot_signif_text_size,
+                 method.args = list(var.equal = TRUE)
+               )
+             } else {
+               p <- p + stat_compare_means(
+                 method = scm_method,
+                 comparisons = comps,
+                 label = label,
+                 step.increase = input$plot_signif_step,
+                 size = input$plot_signif_text_size
+               )
+             }
+           }
+         } else {
+           p <- p + stat_compare_means(
+             method = scm_method,
+             label = label,
+             label.y.npc = "top",
+             size = input$plot_signif_text_size
+           )
+         }
        }
-     } else {
-       scm_call <- c(list(
-         method = scm_method,
-         label = label,
-         label.y.npc = "top",
-         size = input$plot_signif_text_size
-       ), scm_args)
-       p <- p + do.call(stat_compare_means, scm_call)
-     }
+     }, error = function(e) {
+       message("Significance annotation error: ", e$message)
+     })
    }
    
    # === Labels ===
@@ -4468,7 +4493,17 @@ server <- function(input, output, session) {
      if (!is.na(p_val)) {
        p_label <- mp_format_p_label(p_val, signif_label)
        if (nzchar(p_label)) {
-         y_pos <- max(sub$value, na.rm = TRUE) + diff(range(sub$value, na.rm = TRUE)) * 0.08
+         # For bar plots, compute y_pos from summary (mean + error) not raw values
+         if (plot_type %in% c("bar", "bar_sd")) {
+           summ_y <- sub %>% dplyr::group_by(Group) %>%
+             dplyr::summarise(
+               top = mean(value, na.rm = TRUE) + if (plot_type == "bar")
+                 sd(value, na.rm = TRUE) / sqrt(dplyr::n()) else sd(value, na.rm = TRUE),
+               .groups = "drop")
+           y_pos <- max(summ_y$top, na.rm = TRUE) * 1.08
+         } else {
+           y_pos <- max(sub$value, na.rm = TRUE) + diff(range(sub$value, na.rm = TRUE)) * 0.08
+         }
          x_pos <- (1 + n_grps) / 2
          p <- p + annotate("text", x = x_pos, y = y_pos, label = p_label,
                             size = 4, fontface = "bold", color = "#333333")
@@ -4571,8 +4606,18 @@ server <- function(input, output, session) {
          p_val <- mp_compute_pvalue_multi(sub_p$value, sub_p$Group, test_method)
        }
        p_label <- if (!is.na(p_val)) mp_format_p_label(p_val, signif_label) else ""
-       y_pos <- max(sub_p$value, na.rm = TRUE) +
-         diff(range(sub_p$value, na.rm = TRUE)) * 0.08
+       # For bar plots, use summary (mean + error) for y_pos
+       if (plot_type %in% c("bar", "bar_sd")) {
+         summ_y <- sub_p %>% dplyr::group_by(Group) %>%
+           dplyr::summarise(
+             top = mean(value, na.rm = TRUE) + if (plot_type == "bar")
+               sd(value, na.rm = TRUE) / sqrt(dplyr::n()) else sd(value, na.rm = TRUE),
+             .groups = "drop")
+         y_pos <- max(summ_y$top, na.rm = TRUE) * 1.08
+       } else {
+         y_pos <- max(sub_p$value, na.rm = TRUE) +
+           diff(range(sub_p$value, na.rm = TRUE)) * 0.08
+       }
        x_pos <- (1 + n_grps) / 2
        data.frame(Parameter = param, x = x_pos, y = y_pos, label = p_label,
                   stringsAsFactors = FALSE)
