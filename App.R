@@ -187,10 +187,10 @@ ui <- dashboardPage(
            el.style.height = msg.height + 'px';
          }
        });
-       // Disable header options in mp_test_method dropdown
+       // Disable header options in dropdowns with header_ values
        $(document).on('shiny:connected', function() {
          function disableHeaders() {
-           $('#mp_test_method option').each(function() {
+           $('#mp_test_method option, #plot_signif_method option').each(function() {
              if ($(this).val().indexOf('header_') === 0) {
                $(this).prop('disabled', true);
                $(this).css({'font-weight': 'bold', 'color': '#2c6fa0', 'background': '#eef5fb'});
@@ -965,9 +965,21 @@ ui <- dashboardPage(
              conditionalPanel(
                condition = "input.plot_show_signif == true",
                selectInput("plot_signif_method", "Comparison Method:",
-                 choices = c("t.test", "wilcox.test", "anova", "kruskal.test")),
-               selectInput("plot_signif_label", "Label Format:",
-                 choices = c("p.signif", "p.format")),
+                 choices = c(
+                   "--- Parametric (2 groups) ---" = "header_param2",
+                   "Student's t-test (pooled)" = "t.test.pooled",
+                   "Welch's t-test" = "t.test",
+                   "--- Non-Parametric (2 groups) ---" = "header_np2",
+                   "Mann-Whitney U Test" = "wilcox.test",
+                   "--- Parametric (3+ groups) ---" = "header_param3",
+                   "One-Way ANOVA" = "anova",
+                   "--- Non-Parametric (3+ groups) ---" = "header_np3",
+                   "Kruskal-Wallis Test" = "kruskal.test"
+                 ), selected = "t.test", selectize = FALSE),
+               selectInput("plot_signif_label", "Significance Label:",
+                 choices = c("Stars (*, **, ***)" = "p.signif",
+                             "Exact p-value" = "p.format"),
+                 selected = "p.signif"),
                sliderInput("plot_signif_step", "Bar Step Increase:",
                  min = 0, max = 0.15, value = 0.05, step = 0.01),
                sliderInput("plot_signif_text_size", "Significance Text Size:",
@@ -1093,6 +1105,26 @@ ui <- dashboardPage(
                "Seoul, Republic of Korea", br(),
                icon("envelope"), " ",
                tags$a(href = "mailto:dinuka90@yuhs.ac", "dinuka90@yuhs.ac")
+             ),
+             hr(),
+             h4(icon("link"), " Links"),
+             tags$ul(style = "font-size: 14px; line-height: 2;",
+               tags$li(
+                 icon("github"), " ",
+                 strong("Source Code: "),
+                 tags$a(href = "https://github.com/Dinuka0001/ShinyStatR",
+                        target = "_blank",
+                        "github.com/Dinuka0001/ShinyStatR"),
+                 " — View the source code, report issues, or contribute"
+               ),
+               tags$li(
+                 icon("globe"), " ",
+                 strong("Live App: "),
+                 tags$a(href = "https://dinuka-shinystatr.share.connect.posit.cloud/",
+                        target = "_blank",
+                        "dinuka-shinystatr.share.connect.posit.cloud"),
+                 " — Try ShinyStatR online without installation"
+               )
              ),
              hr(),
              div(style = "text-align: center; color: #95a5a6; font-size: 12px;",
@@ -1246,7 +1278,7 @@ ui <- dashboardPage(
                  "Shapiro-Wilk Test" = "shapiro",
                  "--- Other ---" = "header_other",
                  "None" = "none"
-               ), selected = "t.test"),
+               ), selected = "t.test", selectize = FALSE),
              conditionalPanel(
                condition = "input.mp_test_method == 'two_z'",
                numericInput("mp_known_sigma", "Known Sigma:", value = 1, min = 0.001)
@@ -3139,12 +3171,13 @@ server <- function(input, output, session) {
        Skewness = {
          n <- length(x); m <- mean(x)
          s <- sd(x)
-         (sum((x - m)^3) / n) / s^3
+         (n / ((n - 1) * (n - 2))) * sum(((x - m) / s)^3)
        },
        Kurtosis = {
          n <- length(x); m <- mean(x)
          s <- sd(x)
-         (sum((x - m)^4) / n) / s^4 - 3
+         (n * (n + 1) / ((n - 1) * (n - 2) * (n - 3))) * sum(((x - m) / s)^4) -
+           3 * (n - 1)^2 / ((n - 2) * (n - 3))
        },
        stringsAsFactors = FALSE
      )
@@ -3565,7 +3598,7 @@ server <- function(input, output, session) {
      eb_type <- input$plot_errorbar_type
      eb_fun <- switch(eb_type,
        "se" = mean_se,
-       "sd" = mean_sdl,
+       "sd" = function(x, ...) { m <- mean(x); s <- sd(x); data.frame(y = m, ymin = m - s, ymax = m + s) },
        "ci" = mean_cl_normal,
        "iqr" = median_hilow
      )
@@ -3586,25 +3619,41 @@ server <- function(input, output, session) {
      method <- input$plot_signif_method
      label <- input$plot_signif_label
      
-     if (method %in% c("t.test", "wilcox.test")) {
+     # Map extended method names to stat_compare_means compatible methods
+     scm_method <- switch(method,
+       "t.test.pooled" = "t.test",
+       "t.test"        = "t.test",
+       "wilcox.test"   = "wilcox.test",
+       "anova"         = "anova",
+       "kruskal.test"  = "kruskal.test",
+       "t.test"  # default fallback
+     )
+     scm_args <- list()
+     if (method == "t.test.pooled") {
+       scm_args <- list(method.args = list(var.equal = TRUE))
+     }
+     
+     if (scm_method %in% c("t.test", "wilcox.test")) {
        groups <- levels(df$group)
        if (length(groups) >= 2) {
          comps <- combn(groups, 2, simplify = FALSE)
-         p <- p + stat_compare_means(
-           method = method,
+         scm_call <- c(list(
+           method = scm_method,
            comparisons = comps,
            label = label,
            step.increase = input$plot_signif_step,
            size = input$plot_signif_text_size
-         )
+         ), scm_args)
+         p <- p + do.call(stat_compare_means, scm_call)
        }
      } else {
-       p <- p + stat_compare_means(
-         method = method,
+       scm_call <- c(list(
+         method = scm_method,
          label = label,
          label.y.npc = "top",
          size = input$plot_signif_text_size
-       )
+       ), scm_args)
+       p <- p + do.call(stat_compare_means, scm_call)
      }
    }
    
