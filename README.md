@@ -1,8 +1,10 @@
-# ShinyStatR <img src="https://img.shields.io/badge/R-Shiny-blue?logo=r" alt="R Shiny">
+# ShinyStatR <img src="https://img.shields.io/badge/R-Shiny-blue?logo=r" alt="R Shiny"> [![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/Dinuka0001/ShinyStatR) [![Live App](https://img.shields.io/badge/Live%20App-Posit%20Cloud-blue?logo=rstudio)](https://dinuka-shinystatr.share.connect.posit.cloud/)
 
 **A comprehensive, web-based statistical analysis application built with R and Shiny.**
 
 ShinyStatR provides an intuitive, no-code interface for performing a wide range of statistical tests, generating publication-ready plots, and exploring data — all from your browser.
+
+> 🌐 **[Try the live app →](https://dinuka-shinystatr.share.connect.posit.cloud/)** &nbsp;|&nbsp; 📦 **[View source on GitHub →](https://github.com/Dinuka0001/ShinyStatR)**
 
 ---
 
@@ -78,6 +80,14 @@ rsconnect::deployApp("path/to/ShinyStatR")
 
 ---
 
+## Live Demo
+
+The app is hosted on Posit Connect Cloud — no installation required:
+
+**🔗 <https://dinuka-shinystatr.share.connect.posit.cloud/>**
+
+---
+
 ## Screenshots
 
 > *Coming soon — the app includes a full dashboard interface with sidebar navigation, interactive data input, customisable plots, and tabbed result views.*
@@ -114,7 +124,9 @@ rsconnect::deployApp("path/to/ShinyStatR")
 Department of Oral Biology  
 Yonsei University College of Dentistry  
 Seoul, Republic of Korea  
-📧 dinuka90@yuhs.ac
+📧 dinuka90@yuhs.ac  
+🐙 [github.com/Dinuka0001/ShinyStatR](https://github.com/Dinuka0001/ShinyStatR)  
+🌐 [Live App](https://dinuka-shinystatr.share.connect.posit.cloud/)
 
 ---
 
