@@ -31,113 +31,388 @@ library(cowplot)
 library(scales)
 library(RColorBrewer)
 
+# Suppress false positives from NSE/data-masked symbols used by ggplot2/dplyr formulas.
+if (getRversion() >= "2.15.1") {
+  utils::globalVariables(c("group", "value", "Group", "strata", "Parameter"))
+}
+group <- value <- Group <- strata <- Parameter <- NULL
+
 # =============================================================================
 # CUSTOM CSS
 # =============================================================================
 app_css <- "
-/* Overall app styling */
-body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-.skin-blue .main-header .logo { font-weight: 700; font-size: 18px; }
-.content-wrapper { background-color: #f4f6f9; }
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Source+Code+Pro:wght@400;500&display=swap');
 
-/* Card styling */
+:root {
+  --bg-soft: #f3f7fb;
+  --bg-soft-2: #eaf1f9;
+  --card: #ffffff;
+  --ink: #1c2d3d;
+  --ink-muted: #5e7388;
+  --accent: #0f6c9b;
+  --accent-2: #0e89a6;
+  --border: #d5e1ec;
+  --ok: #1f8b5f;
+  --warn: #c57a11;
+  --danger: #b73f45;
+}
+
+body {
+  font-family: 'Manrope', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--ink);
+}
+
+.content-wrapper {
+  background: radial-gradient(1200px 800px at 95% -10%, #dceeff 0%, transparent 60%),
+              linear-gradient(180deg, var(--bg-soft) 0%, var(--bg-soft-2) 100%);
+}
+
+.skin-blue .main-header .logo {
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.2px;
+  background: linear-gradient(100deg, #0f6c9b, #0e89a6);
+  color: #fff;
+}
+
+.skin-blue .main-header .navbar {
+  background: linear-gradient(100deg, #184a72, #0f6c9b);
+}
+
+.main-sidebar,
+.skin-blue .main-sidebar {
+  background: linear-gradient(180deg, #13293d 0%, #173650 100%);
+}
+
+.sidebar-menu > li > a {
+  font-size: 13px;
+  letter-spacing: 0.15px;
+  border-radius: 8px;
+  margin: 2px 8px;
+}
+
+.sidebar-menu > li.active > a {
+  background: rgba(255, 255, 255, 0.13);
+  border-left: 4px solid #7ad3ff;
+}
+
 .stat-card {
- background: #fff; border-radius: 8px; padding: 20px;
- margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
- border-left: 4px solid #3c8dbc;
+  background: var(--card);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 10px 24px rgba(18, 55, 88, 0.08);
+  border: 1px solid var(--border);
 }
-.stat-card h4 { margin-top: 0; color: #2c3e50; font-weight: 600; }
-.stat-card.significant { border-left-color: #e74c3c; }
-.stat-card.not-significant { border-left-color: #27ae60; }
 
-/* Result badges */
+.stat-card h4 {
+  margin-top: 0;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.stat-card.significant { border-left: 4px solid var(--danger); }
+.stat-card.not-significant { border-left: 4px solid var(--ok); }
+
 .badge-sig {
- padding: 4px 12px; border-radius: 4px; font-weight: 600;
- font-size: 13px; display: inline-block; margin: 5px 0;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12px;
+  display: inline-block;
+  margin: 6px 0;
 }
-.badge-sig.sig { background: #e74c3c; color: #fff; }
-.badge-sig.not-sig { background: #27ae60; color: #fff; }
 
-/* Section headers */
+.badge-sig.sig { background: #f8d9db; color: #8f2d32; }
+.badge-sig.not-sig { background: #d8efe4; color: #1d6f4d; }
+
 .section-header {
- background: linear-gradient(135deg, #3c8dbc, #2c6fa0);
- color: #fff; padding: 12px 20px; border-radius: 6px;
- margin-bottom: 15px; font-size: 16px; font-weight: 600;
+  background: linear-gradient(100deg, #184a72, #0f6c9b);
+  color: #fff;
+  padding: 13px 20px;
+  border-radius: 12px;
+  margin-bottom: 14px;
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(17, 74, 114, 0.2);
 }
 
-/* Data input area */
+.data-input-area textarea,
+.group-name-input .form-control,
+.form-control {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
 .data-input-area textarea {
- font-family: 'Consolas', 'Courier New', monospace;
- font-size: 13px; border: 2px solid #ddd; border-radius: 6px;
-}
-.data-input-area textarea:focus { border-color: #3c8dbc; }
-
-/* Group name input */
-.group-name-input .form-control {
- font-weight: 600; border: 2px solid #e0e0e0; border-radius: 6px;
+  font-family: 'Source Code Pro', 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
 }
 
-/* Buttons */
+.data-input-area textarea:focus,
+.group-name-input .form-control:focus,
+.form-control:focus {
+  border-color: #7abfe2;
+  box-shadow: 0 0 0 3px rgba(15, 108, 155, 0.12);
+}
+
 .btn-primary {
- background: linear-gradient(135deg, #3c8dbc, #2c6fa0);
- border: none; border-radius: 6px; font-weight: 600;
- padding: 8px 20px; transition: all 0.3s;
+  background: linear-gradient(100deg, #0f6c9b, #0e89a6);
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  padding: 8px 18px;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
-.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(60,141,188,0.4); }
 
-/* Tab styling */
-.nav-tabs > li > a { border-radius: 6px 6px 0 0; font-weight: 600; }
-.nav-tabs > li.active > a { border-top: 3px solid #3c8dbc; }
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 108, 155, 0.3);
+}
 
-/* Table styling */
+.nav-tabs > li > a {
+  border-radius: 10px 10px 0 0;
+  font-weight: 700;
+}
+
+.nav-tabs > li.active > a {
+  border-top: 3px solid var(--accent);
+}
+
 .dataTables_wrapper { font-size: 13px; }
-table.dataTable thead th { background: #3c8dbc; color: #fff; font-weight: 600; }
+table.dataTable thead th { background: #184a72; color: #fff; font-weight: 700; }
 
-/* Plot customization panel */
-.plot-options { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
-.plot-options .form-group { margin-bottom: 8px; }
-
-/* Plot summary text */
 #plot_summary_text {
-  background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 6px;
-  padding: 12px 15px; font-size: 13px; font-family: 'Consolas', 'Courier New', monospace;
-  color: #2c3e50; white-space: pre-wrap; word-wrap: break-word; min-height: 40px;
+  background: #f8fbfe;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 15px;
+  font-size: 12px;
+  font-family: 'Source Code Pro', 'Consolas', 'Courier New', monospace;
+  color: #2a4154;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  min-height: 40px;
 }
 
-/* Sidebar */
-.sidebar-menu > li > a { font-size: 14px; }
-.sidebar-menu > li.active > a { border-left: 4px solid #fff; }
+.sidebar-section-header {
+  font-size: 11px;
+  font-weight: 800;
+  color: #7ad3ff;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 12px 0 6px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(122, 211, 255, 0.3);
+}
 
-/* Test info panel */
+.whisker-help { font-size: 11px; color: #6e7f8f; margin-top: -6px; margin-bottom: 8px; }
+
 .test-info-box {
- background: #eef6fc; border: 1px solid #b8d4e8; border-radius: 8px;
- padding: 15px 18px; margin: 10px 0 15px 0; font-size: 13px;
- color: #2c3e50; line-height: 1.6;
+  background: #f0f8fd;
+  border: 1px solid #c9e1ef;
+  border-radius: 12px;
+  padding: 15px 18px;
+  margin: 10px 0 15px 0;
+  font-size: 13px;
+  color: #2d4659;
+  line-height: 1.6;
 }
-.test-info-box h5 { margin-top: 0; color: #2c6fa0; font-weight: 700; font-size: 14px; }
-.test-info-box ul { margin: 5px 0; padding-left: 20px; }
-.test-info-box .formula { font-family: 'Consolas', monospace; background: #fff;
- padding: 2px 6px; border-radius: 3px; font-size: 12px; }
-.info-toggle-link { color: #3c8dbc; font-weight: 600; cursor: pointer;
- text-decoration: none; font-size: 13px; }
-.info-toggle-link:hover { color: #2c6fa0; text-decoration: underline; }
 
-/* Data source banner */
+.test-info-box h5 { margin-top: 0; color: #195a82; font-weight: 800; font-size: 14px; }
+.test-info-box ul { margin: 5px 0; padding-left: 20px; }
+.test-info-box .formula { font-family: 'Source Code Pro', monospace; background: #fff; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+.info-toggle-link { color: #0f6c9b; font-weight: 700; cursor: pointer; text-decoration: none; font-size: 13px; }
+.info-toggle-link:hover { color: #0c587f; text-decoration: underline; }
+
 .data-source-banner {
-  padding: 8px 12px; border-radius: 6px; margin-bottom: 12px;
-  font-size: 12px; font-weight: 600; line-height: 1.4;
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
 }
+
 .data-source-banner.source-manual {
-  background: #d5f5e3; border: 1px solid #27ae60; color: #1e8449;
+  background: #e0f4ea;
+  border: 1px solid #89cbad;
+  color: #1e6a48;
 }
+
 .data-source-banner.source-file {
-  background: #d6eaf8; border: 1px solid #2980b9; color: #1a5276;
+  background: #e0eff9;
+  border: 1px solid #90bde0;
+  color: #1d4f78;
 }
+
 .data-source-banner.source-none {
-  background: #fdebd0; border: 1px solid #e67e22; color: #935116;
+  background: #fbeedb;
+  border: 1px solid #ebc58a;
+  color: #925f0f;
 }
-.data-source-sidebar {
-  padding: 8px 15px; margin: 0 10px 5px 10px;
+
+.data-source-sidebar { padding: 8px 15px; margin: 0 10px 5px 10px; }
+
+.sidebar-status-panel {
+  margin: 0 10px 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 8px 10px;
+}
+
+.sidebar-status-title {
+  font-size: 10px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: #a9cce6;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.sidebar-status-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 4px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-status-row .status-pill {
+  justify-self: start;
+}
+
+.sidebar-status-row:first-of-type {
+  border-top: none;
+  padding-top: 2px;
+}
+
+.sidebar-status-main {
+  color: #e5f2fc;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.sidebar-status-detail {
+  display: block;
+  color: #b9d3e5;
+  font-size: 9px;
+  margin-top: 2px;
+}
+
+.status-pill {
+  display: inline-block;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+}
+
+.status-pill.ok {
+  background: #d8efe4;
+  color: #1d6f4d;
+}
+
+.status-pill.warn {
+  background: #fbeedb;
+  color: #925f0f;
+}
+
+.plot-config-panel,
+.mp-options-panel {
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+  position: sticky;
+  top: 66px;
+  scrollbar-width: thin;
+}
+
+.panel-subtitle {
+  margin: -3px 0 12px 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.plot-config-panel h5,
+.mp-options-panel h5 {
+  margin: 14px 0 8px 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #edf5fb;
+  color: #1f4f74;
+  border: 1px solid #d3e4f1;
+}
+
+.plot-config-panel hr,
+.mp-options-panel hr {
+  border-top: 1px solid #d7e3ee;
+  margin-top: 14px;
+  margin-bottom: 10px;
+}
+
+.cfg-section {
+  border: 1px solid #d6e4f0;
+  border-radius: 10px;
+  background: #fbfdff;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.cfg-section > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1f4f74;
+  background: #edf5fb;
+  border-bottom: 1px solid #d6e4f0;
+}
+
+.cfg-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.cfg-section > summary::after {
+  content: '+';
+  float: right;
+  font-weight: 800;
+}
+
+.cfg-section[open] > summary::after {
+  content: '-';
+}
+
+.cfg-section .form-group,
+.cfg-section .shiny-input-container,
+.cfg-section .help-block {
+  margin-left: 12px;
+  margin-right: 12px;
+}
+
+.cfg-section > .help-block {
+  margin-top: 10px;
+}
+
+@media (max-width: 991px) {
+  .section-header { font-size: 15px; padding: 11px 14px; }
+  .stat-card { padding: 14px; border-radius: 12px; }
+  .plot-config-panel,
+  .mp-options-panel {
+    max-height: none;
+    overflow-y: visible;
+    position: static;
+  }
 }
 "
 
@@ -186,32 +461,45 @@ ui <- dashboardPage(
  # --- Body ---
  dashboardBody(
    tags$head(
-     tags$style(HTML(app_css)),
-     tags$script(HTML("
-       Shiny.addCustomMessageHandler('resizePlotContainer', function(msg) {
-         var wrapper = document.getElementById('main_plot_wrapper');
-         var plotEl = document.getElementById('main_plot');
-         if (wrapper) { wrapper.style.height = msg.height + 'px'; }
-         if (plotEl) { plotEl.style.height = msg.height + 'px'; }
-       });
-       // Disable header options in dropdowns with header_ values
-       $(document).on('shiny:connected', function() {
-         function disableHeaders() {
-           $('#mp_test_method option, #plot_signif_method option').each(function() {
-             if ($(this).val().indexOf('header_') === 0) {
-               $(this).prop('disabled', true);
-               $(this).css({'font-weight': 'bold', 'color': '#2c6fa0', 'background': '#eef5fb'});
-             }
-           });
-         }
-         disableHeaders();
-         $(document).on('shiny:updateinput', function(e) {
-           if (e.binding && e.binding.name === 'shiny.selectInput') {
-             setTimeout(disableHeaders, 100);
-           }
-         });
-       });
-     "))
+    tags$style(HTML(app_css)),
+    tags$script(HTML(paste(c(
+      "Shiny.addCustomMessageHandler('resizePlotContainer', function(msg) {",
+      "  var wrapper = document.getElementById('main_plot_wrapper');",
+      "  var plotEl = document.getElementById('main_plot');",
+      "  if (wrapper) { wrapper.style.height = msg.height + 'px'; }",
+      "  if (plotEl) { plotEl.style.height = msg.height + 'px'; }",
+      "});",
+      "Shiny.addCustomMessageHandler('clearMpInputs', function(msg) {",
+      "  var fileEl = document.getElementById('mp_file_input');",
+      "  if (fileEl) {",
+      "    fileEl.value = '';",
+      "    fileEl.dispatchEvent(new Event('change', { bubbles: true }));",
+      "    var fileWrapper = fileEl.closest('.input-group');",
+      "    if (fileWrapper) {",
+      "      var fileText = fileWrapper.querySelector('input.form-control');",
+      "      if (fileText) {",
+      "        fileText.value = '';",
+      "      }",
+      "    }",
+      "  }",
+      "});",
+      "$(document).on('shiny:connected', function() {",
+      "  function disableHeaders() {",
+      "    $('#mp_test_method option, #plot_signif_method option').each(function() {",
+      "      if ($(this).val().indexOf('header_') === 0) {",
+      "        $(this).prop('disabled', true);",
+      "        $(this).css({'font-weight': 'bold', 'color': '#2c6fa0', 'background': '#eef5fb'});",
+      "      }",
+      "    });",
+      "  }",
+      "  disableHeaders();",
+      "  $(document).on('shiny:updateinput', function(e) {",
+      "    if (e.binding && e.binding.name === 'shiny.selectInput') {",
+      "      setTimeout(disableHeaders, 100);",
+      "    }",
+      "  });",
+      "});"
+    ), collapse = '\n')))
    ),
    
    tabItems(
@@ -709,8 +997,15 @@ ui <- dashboardPage(
                  column(6,
                    helpText("Data format: Group should contain time values.",
                      "Create a separate group for event/status (1=event, 0=censored).")
+                ),
+                column(3,
+                  numericInput("surv_event_code", "Event Code:", value = 1)
+                ),
+                column(3,
+                  numericInput("surv_censor_code", "Censor Code:", value = 0)
                  )
-               )
+               ),
+              uiOutput("surv_km_detect_hint")
              ),
              conditionalPanel(
                condition = "input.surv_test == 'delong_ind' ||
@@ -719,8 +1014,12 @@ ui <- dashboardPage(
                  column(12,
                    helpText("Data format: Need groups for actual class labels (0/1),",
                      "predictor scores from Model 1, and predictor scores from Model 2.")
+                ),
+                column(4,
+                  numericInput("surv_positive_label", "Positive Class Label:", value = 1)
                  )
-               )
+               ),
+              uiOutput("surv_roc_detect_hint")
              ),
              br(),
              checkboxInput("show_info_surv", "Show test details", FALSE),
@@ -767,6 +1066,7 @@ ui <- dashboardPage(
                helpText("Data format: Need a grouping column and multiple",
                  "response variable columns. Use the file upload for structured data.")
              ),
+            checkboxInput("multi_remove_missing", "Remove rows with missing values", TRUE),
              br(),
              checkboxInput("show_info_multi", "Show test details", FALSE),
              uiOutput("test_info_multi"),
@@ -843,8 +1143,10 @@ ui <- dashboardPage(
        uiOutput("ds_banner_plots"),
        fluidRow(
          column(3,
-           div(class = "stat-card",
+          div(class = "stat-card plot-config-panel",
              h4(icon("chart-area"), " Plot Configuration"),
+            p(class = "panel-subtitle",
+              "Tune appearance, labels, significance, and export settings. Sections below are grouped for faster scanning."),
              
              selectInput("plot_type", "Plot Type:",
                choices = c(
@@ -863,153 +1165,151 @@ ui <- dashboardPage(
                  "QQ Plot" = "qq"
                )),
              
-             hr(),
-             h5(strong("Aesthetics")),
-             
-             colourInput("plot_bg_color", "Background Color:", "#ffffff"),
-             
-             checkboxInput("plot_use_group_colors", 
-               "Use different colors per group", TRUE),
-             
              conditionalPanel(
-               condition = "input.plot_use_group_colors == false",
-               colourInput("plot_fill_color", "Fill Color:", "#3c8dbc",
-                 allowTransparent = TRUE),
-               colourInput("plot_border_color", "Border/Line Color:", "#2c3e50"),
-               colourInput("plot_point_color", "Point Color:", "#e74c3c")
+               condition = "input.plot_type == 'box' || input.plot_type == 'box_jitter' || input.plot_type == 'violin_box'",
+               selectInput("plot_whisker_type", "Whiskers Representation:",
+                 choices = c("Default (1.5 IQR)" = "default",
+                             "Min / Max" = "minmax",
+                             "Percentiles (5th-95th)" = "percentile",
+                             "Std Deviation (Mean \u00b1 SD)" = "sd"),
+                 selected = "default"),
+               helpText(style = "font-size:11px; color:#888; margin-top:-8px;",
+                 "Controls how far box whiskers extend.")
              ),
              
-             conditionalPanel(
-               condition = "input.plot_use_group_colors == true",
-               selectInput("plot_palette", "Color Palette:",
+             tags$details(class = "cfg-section", open = "open",
+               tags$summary("Aesthetics"),
+               colourInput("plot_bg_color", "Background Color:", "#ffffff"),
+               checkboxInput("plot_use_group_colors",
+                 "Use different colors per group", TRUE),
+               conditionalPanel(
+                 condition = "input.plot_use_group_colors == false",
+                 colourInput("plot_fill_color", "Fill Color:", "#3c8dbc",
+                   allowTransparent = TRUE),
+                 colourInput("plot_border_color", "Border/Line Color:", "#2c3e50"),
+                 colourInput("plot_point_color", "Point Color:", "#e74c3c")
+               ),
+               conditionalPanel(
+                 condition = "input.plot_use_group_colors == true",
+                 selectInput("plot_palette", "Color Palette:",
+                   choices = c(
+                     "Default" = "default",
+                     "Custom" = "custom",
+                     "Black & White" = "bw_pal",
+                     "Greyscale" = "grey_pal",
+                     "Set1" = "Set1", "Set2" = "Set2", "Set3" = "Set3",
+                     "Pastel1" = "Pastel1", "Pastel2" = "Pastel2",
+                     "Dark2" = "Dark2", "Accent" = "Accent",
+                     "Paired" = "Paired",
+                     "npg (Nature)" = "npg",
+                     "aaas (Science)" = "aaas",
+                     "lancet" = "lancet",
+                     "jco (JCO)" = "jco",
+                     "nejm (NEJM)" = "nejm"
+                   )),
+                 uiOutput("palette_preview"),
+                 uiOutput("custom_group_colors_ui")
+               ),
+               sliderInput("plot_alpha", "Fill Transparency:",
+                 min = 0, max = 1, value = 0.7, step = 0.05),
+               sliderInput("plot_line_width", "Line Width:",
+                 min = 0.1, max = 3, value = 0.8, step = 0.1),
+               sliderInput("plot_point_size", "Point Size:",
+                 min = 0.5, max = 6, value = 2, step = 0.25)
+             ),
+
+             tags$details(class = "cfg-section",
+               tags$summary("Layout & Labels"),
+               textInput("plot_title", "Title:", ""),
+               textInput("plot_xlab", "X-axis Label:", ""),
+               textInput("plot_ylab", "Y-axis Label:", ""),
+               sliderInput("plot_title_size", "Title Font Size:",
+                 min = 8, max = 30, value = 16, step = 1),
+               sliderInput("plot_axis_title_size", "Axis Title Font Size:",
+                 min = 8, max = 24, value = 14, step = 1),
+               sliderInput("plot_axis_text_size", "Axis Text Font Size:",
+                 min = 6, max = 20, value = 12, step = 1),
+               sliderInput("plot_legend_size", "Legend Font Size:",
+                 min = 6, max = 20, value = 11, step = 1),
+               checkboxInput("plot_title_bold", "Bold Title", TRUE),
+               checkboxInput("plot_title_italic", "Italic Title", FALSE),
+               checkboxInput("plot_axis_title_bold", "Bold Axis Titles", FALSE),
+               checkboxInput("plot_axis_title_italic", "Italic Axis Titles", FALSE),
+               selectInput("plot_theme", "Theme:",
                  choices = c(
-                   "Default" = "default",
-                   "Custom" = "custom",
-                   "Black & White" = "bw_pal",
-                   "Greyscale" = "grey_pal",
-                   "Set1" = "Set1", "Set2" = "Set2", "Set3" = "Set3",
-                   "Pastel1" = "Pastel1", "Pastel2" = "Pastel2",
-                   "Dark2" = "Dark2", "Accent" = "Accent",
-                   "Paired" = "Paired",
-                   "npg (Nature)" = "npg",
-                   "aaas (Science)" = "aaas",
-                   "lancet" = "lancet",
-                   "jco (JCO)" = "jco",
-                   "nejm (NEJM)" = "nejm"
-                 )),
-               # Live palette preview (non-custom)
-               uiOutput("palette_preview"),
-               # Custom per-group color pickers
-               uiOutput("custom_group_colors_ui")
+                   "Classic" = "classic",
+                   "Minimal" = "minimal",
+                   "BW" = "bw",
+                   "Light" = "light",
+                   "Publication (theme_pubr)" = "pubr",
+                   "void" = "void"
+                 ), selected = "classic"),
+               checkboxInput("plot_show_legend", "Show Legend", TRUE),
+               checkboxInput("plot_coord_flip", "Flip Coordinates", FALSE),
+               checkboxInput("plot_underline_title", "Underline Title", FALSE)
              ),
-             
-             sliderInput("plot_alpha", "Fill Transparency:", 
-               min = 0, max = 1, value = 0.7, step = 0.05),
-             sliderInput("plot_line_width", "Line Width:",
-               min = 0.1, max = 3, value = 0.8, step = 0.1),
-             sliderInput("plot_point_size", "Point Size:",
-               min = 0.5, max = 6, value = 2, step = 0.25),
-             
-             hr(),
-             h5(strong("Layout & Labels")),
-             
-             textInput("plot_title", "Title:", ""),
-             textInput("plot_xlab", "X-axis Label:", ""),
-             textInput("plot_ylab", "Y-axis Label:", ""),
-             
-             sliderInput("plot_title_size", "Title Font Size:",
-               min = 8, max = 30, value = 16, step = 1),
-             sliderInput("plot_axis_title_size", "Axis Title Font Size:",
-               min = 8, max = 24, value = 14, step = 1),
-             sliderInput("plot_axis_text_size", "Axis Text Font Size:",
-               min = 6, max = 20, value = 12, step = 1),
-             sliderInput("plot_legend_size", "Legend Font Size:",
-               min = 6, max = 20, value = 11, step = 1),
-             
-             checkboxInput("plot_title_bold", "Bold Title", TRUE),
-             checkboxInput("plot_title_italic", "Italic Title", FALSE),
-             
-             checkboxInput("plot_axis_title_bold", "Bold Axis Titles", FALSE),
-             checkboxInput("plot_axis_title_italic", "Italic Axis Titles", FALSE),
-             
-             selectInput("plot_theme", "Theme:",
-               choices = c(
-                 "Classic" = "classic",
-                 "Minimal" = "minimal",
-                 "BW" = "bw",
-                 "Light" = "light",
-                 "Publication (theme_pubr)" = "pubr",
-                 "void" = "void"
-               ), selected = "classic"),
-             
-             hr(),
-             h5(strong("Error Bars & Overlays")),
-             
-             checkboxInput("plot_show_mean", "Show Mean Point", FALSE),
-             checkboxInput("plot_show_errorbar", "Show Error Bars", FALSE),
-             conditionalPanel(
-               condition = "input.plot_show_errorbar == true",
-               selectInput("plot_errorbar_type", "Error Bar Type:",
-                 choices = c("SE" = "se", "SD" = "sd", 
-                             "95% CI" = "ci", "IQR" = "iqr")),
-               sliderInput("plot_errorbar_width", "Error Bar Width:",
-                 min = 0, max = 0.8, value = 0.2, step = 0.05)
+
+             tags$details(class = "cfg-section",
+               tags$summary("Error Bars & Overlays"),
+               checkboxInput("plot_show_mean", "Show Mean Point", FALSE),
+               checkboxInput("plot_show_errorbar", "Show Error Bars", FALSE),
+               conditionalPanel(
+                 condition = "input.plot_show_errorbar == true",
+                 selectInput("plot_errorbar_type", "Error Bar Type:",
+                   choices = c("SE" = "se", "SD" = "sd",
+                               "95% CI" = "ci", "IQR" = "iqr")),
+                 sliderInput("plot_errorbar_width", "Error Bar Width:",
+                   min = 0, max = 0.8, value = 0.2, step = 0.05)
+               ),
+               checkboxInput("plot_show_jitter", "Overlay Jitter Points", FALSE),
+               conditionalPanel(
+                 condition = "input.plot_show_jitter == true",
+                 sliderInput("plot_jitter_width", "Jitter Width:",
+                   min = 0, max = 0.5, value = 0.15, step = 0.01),
+                 sliderInput("plot_jitter_alpha", "Jitter Alpha:",
+                   min = 0, max = 1, value = 0.5, step = 0.05)
+               )
              ),
-             
-             checkboxInput("plot_show_jitter", "Overlay Jitter Points", FALSE),
-             conditionalPanel(
-               condition = "input.plot_show_jitter == true",
-               sliderInput("plot_jitter_width", "Jitter Width:",
-                 min = 0, max = 0.5, value = 0.15, step = 0.01),
-               sliderInput("plot_jitter_alpha", "Jitter Alpha:",
-                 min = 0, max = 1, value = 0.5, step = 0.05)
+
+             tags$details(class = "cfg-section",
+               tags$summary("Significance"),
+               checkboxInput("plot_show_signif", "Show Significance Bars", FALSE),
+               conditionalPanel(
+                 condition = "input.plot_show_signif == true",
+                 selectInput("plot_signif_method", "Comparison Method:",
+                   choices = c(
+                     "--- Parametric (2 groups) ---" = "header_param2",
+                     "Student's t-test (pooled)" = "t.test.pooled",
+                     "Welch's t-test" = "t.test",
+                     "--- Non-Parametric (2 groups) ---" = "header_np2",
+                     "Mann-Whitney U Test" = "wilcox.test",
+                     "--- Parametric (3+ groups) ---" = "header_param3",
+                     "One-Way ANOVA" = "anova",
+                     "--- Non-Parametric (3+ groups) ---" = "header_np3",
+                     "Kruskal-Wallis Test" = "kruskal.test"
+                   ), selected = "t.test", selectize = FALSE),
+                 selectInput("plot_signif_label", "Significance Label:",
+                   choices = c("Stars (*, **, ***)" = "p.signif",
+                               "Exact p-value" = "p.format"),
+                   selected = "p.signif"),
+                 sliderInput("plot_signif_step", "Bar Step Increase:",
+                   min = 0, max = 0.15, value = 0.05, step = 0.01),
+                 sliderInput("plot_signif_text_size", "Significance Text Size:",
+                   min = 2, max = 8, value = 3.5, step = 0.5)
+               )
              ),
-             
-             hr(),
-             h5(strong("Significance")),
-             
-             checkboxInput("plot_show_signif", "Show Significance Bars", FALSE),
-             conditionalPanel(
-               condition = "input.plot_show_signif == true",
-               selectInput("plot_signif_method", "Comparison Method:",
-                 choices = c(
-                   "--- Parametric (2 groups) ---" = "header_param2",
-                   "Student's t-test (pooled)" = "t.test.pooled",
-                   "Welch's t-test" = "t.test",
-                   "--- Non-Parametric (2 groups) ---" = "header_np2",
-                   "Mann-Whitney U Test" = "wilcox.test",
-                   "--- Parametric (3+ groups) ---" = "header_param3",
-                   "One-Way ANOVA" = "anova",
-                   "--- Non-Parametric (3+ groups) ---" = "header_np3",
-                   "Kruskal-Wallis Test" = "kruskal.test"
-                 ), selected = "t.test", selectize = FALSE),
-               selectInput("plot_signif_label", "Significance Label:",
-                 choices = c("Stars (*, **, ***)" = "p.signif",
-                             "Exact p-value" = "p.format"),
-                 selected = "p.signif"),
-               sliderInput("plot_signif_step", "Bar Step Increase:",
-                 min = 0, max = 0.15, value = 0.05, step = 0.01),
-               sliderInput("plot_signif_text_size", "Significance Text Size:",
-                 min = 2, max = 8, value = 3.5, step = 0.5)
-             ),
-             
-             hr(),
-             h5(strong("Spacing & Dimensions")),
-             
-             sliderInput("plot_width_adj", "Group Width (dodge):",
-               min = 0.2, max = 1.2, value = 0.75, step = 0.05),
-             
-             numericInput("plot_download_width", "Download Width (cm):",
-               value = 20, min = 5, max = 50, step = 1),
-             numericInput("plot_download_height", "Download Height (cm):",
-               value = 15, min = 5, max = 50, step = 1),
-             numericInput("plot_download_dpi", "Download DPI:",
-               value = 300, min = 72, max = 600, step = 50),
-             
-             hr(),
-             checkboxInput("plot_show_legend", "Show Legend", TRUE),
-             checkboxInput("plot_coord_flip", "Flip Coordinates", FALSE),
-             checkboxInput("plot_underline_title", "Underline Title", FALSE)
+
+             tags$details(class = "cfg-section",
+               tags$summary("Spacing & Export"),
+               sliderInput("plot_width_adj", "Group Width (dodge):",
+                 min = 0.2, max = 1.2, value = 0.75, step = 0.05),
+               numericInput("plot_download_width", "Download Width (cm):",
+                 value = 20, min = 5, max = 50, step = 1),
+               numericInput("plot_download_height", "Download Height (cm):",
+                 value = 15, min = 5, max = 50, step = 1),
+               numericInput("plot_download_dpi", "Download DPI:",
+                 value = 300, min = 72, max = 600, step = 50)
+             )
            )
          ),
          column(9,
@@ -1176,10 +1476,12 @@ ui <- dashboardPage(
                      checkboxInput("mp_paste_header", "First row is header", TRUE)
                    )
                  ),
-                 tags$textarea(id = "mp_raw_text", rows = 10,
-                   style = "width:100%; font-family:Consolas,monospace; font-size:12px;",
-                   placeholder = "Paste data here...\nSample\tGroup\tParam1\tParam2\nS1\tCtrl\t1.2\t3.4\nS2\tTreat\t2.1\t4.5"
-                 ),
+                textAreaInput("mp_raw_text", label = NULL,
+                  rows = 10,
+                  width = "100%",
+                  value = "",
+                  placeholder = "Paste data here...\nSample\tGroup\tParam1\tParam2\nS1\tCtrl\t1.2\t3.4\nS2\tTreat\t2.1\t4.5"
+                ),
                  br(),
                  actionButton("mp_load", "Load Pasted Data", icon = icon("check-circle"),
                    class = "btn-primary")
@@ -1216,98 +1518,199 @@ ui <- dashboardPage(
              uiOutput("mp_data_summary"),
              DTOutput("mp_data_preview")
            ),
-           div(class = "stat-card",
+           div(class = "stat-card mp-options-panel",
              h4(icon("sliders-h"), " Plot Options"),
-             uiOutput("mp_param_selector_ui"),
-             uiOutput("mp_group_order_ui"),
-             radioButtons("mp_view_mode", "Plot Layout:",
-               choices = c("Separate plots (one per parameter)" = "separate",
-                           "Single combined plot (all parameters)" = "combined"),
-               selected = "separate", inline = FALSE),
-             selectInput("mp_plot_type", "Plot Type:",
-               choices = c(
-                 "Box Plot" = "box",
-                 "Violin Plot" = "violin",
-                 "Box + Jitter" = "box_jitter",
-                 "Violin + Jitter" = "violin_jitter",
-                 "Violin + Box" = "violin_box",
-                 "Bar Plot (Mean + SE)" = "bar",
-                 "Bar Plot (Mean + SD)" = "bar_sd",
-                 "Dot Plot (Strip)" = "dot",
-                 "Bee Swarm Plot" = "swarm"
-               ), selected = "box_jitter"),
-             checkboxInput("mp_custom_ylim", "Set custom Y-axis limits", FALSE),
-             conditionalPanel(
-               condition = "input.mp_custom_ylim == true",
-               helpText("Applied per-parameter in separate mode, or to the full combined plot."),
-               fluidRow(
-                 column(6, numericInput("mp_ymin", "Y Min:", value = NA)),
-                 column(6, numericInput("mp_ymax", "Y Max:", value = NA))
+             p(class = "panel-subtitle",
+               "Configure multi-parameter visual style, significance testing, and download dimensions."),
+             tags$details(class = "cfg-section", open = "open",
+               tags$summary("Data mapping & plot type"),
+               uiOutput("mp_param_selector_ui"),
+               uiOutput("mp_group_order_ui"),
+               radioButtons("mp_view_mode", "Plot Layout:",
+                 choices = c("Separate plots (one per parameter)" = "separate",
+                             "Single combined plot (all parameters)" = "combined",
+                             "Grouped single plot (parameters on x-axis)" = "grouped"),
+                 selected = "separate", inline = FALSE),
+               selectInput("mp_plot_type", "Plot Type:",
+                 choices = c(
+                   "Box Plot" = "box",
+                   "Violin Plot" = "violin",
+                   "Dot Plot (Strip)" = "dot",
+                   "Bee Swarm Plot" = "swarm",
+                   "Bar Plot (Mean + SE)" = "bar",
+                   "Bar Plot (Mean + SD)" = "bar_sd",
+                   "Box + Jitter" = "box_jitter",
+                   "Violin + Jitter" = "violin_jitter",
+                   "Violin + Box" = "violin_box",
+                   "Dot Plot (Mean + SD)" = "mean_dot"
+                 ), selected = "box_jitter"),
+               conditionalPanel(
+                 condition = "input.mp_plot_type == 'box' || input.mp_plot_type == 'box_jitter' || input.mp_plot_type == 'violin_box'",
+                 selectInput("mp_whisker_type", "Whiskers Representation:",
+                   choices = c("Default (1.5 IQR)" = "default",
+                               "Min / Max" = "minmax",
+                               "Percentiles (5th-95th)" = "percentile",
+                               "Std Deviation (Mean \u00b1 SD)" = "sd"),
+                   selected = "default"),
+                 helpText(style = "font-size:11px; color:#888; margin-top:-8px;",
+                   "Controls how far box whiskers extend.")
+               ),
+               checkboxInput("mp_custom_ylim", "Set custom Y-axis limits", FALSE),
+               conditionalPanel(
+                 condition = "input.mp_custom_ylim == true",
+                 helpText("Applied per-parameter in separate mode, or to the full combined plot."),
+                 fluidRow(
+                   column(6, numericInput("mp_ymin", "Y Min:", value = NA)),
+                   column(6, numericInput("mp_ymax", "Y Max:", value = NA))
+                 )
+               ),
+               conditionalPanel(
+                 condition = "input.mp_view_mode == 'combined' || input.mp_view_mode == 'grouped'",
+                 checkboxInput("mp_free_y", "Free Y-axis scales per parameter", TRUE)
                )
              ),
-             conditionalPanel(
-               condition = "input.mp_view_mode == 'combined'",
-               checkboxInput("mp_free_y", "Free Y-axis scales per parameter", TRUE)
+
+             tags$details(class = "cfg-section", open = "open",
+               tags$summary("Aesthetics"),
+               colourInput("mp_bg_color", "Background Color:", "#ffffff"),
+               sliderInput("mp_alpha", "Fill Transparency:", min = 0, max = 1, value = 0.7, step = 0.05),
+               sliderInput("mp_line_width", "Line Width:",
+                 min = 0.1, max = 3, value = 0.8, step = 0.1),
+               sliderInput("mp_point_size", "Point Size:", min = 0.5, max = 6, value = 2, step = 0.25),
+               selectInput("mp_palette", "Color Palette:",
+                 choices = c(
+                   "Default" = "default",
+                   "Custom" = "custom",
+                   "Black & White" = "bw_pal",
+                   "Greyscale" = "grey_pal",
+                   "Set1" = "Set1", "Set2" = "Set2", "Set3" = "Set3",
+                   "Pastel1" = "Pastel1", "Pastel2" = "Pastel2",
+                   "Dark2" = "Dark2", "Accent" = "Accent",
+                   "Paired" = "Paired",
+                   "npg (Nature)" = "npg", "aaas (Science)" = "aaas",
+                   "lancet" = "lancet", "jco (JCO)" = "jco",
+                   "nejm (NEJM)" = "nejm"
+                 ), selected = "default"),
+               uiOutput("mp_palette_preview"),
+               uiOutput("mp_custom_group_colors_ui")
              ),
-             sliderInput("mp_point_size", "Point Size:", min = 0.5, max = 5, value = 2, step = 0.25),
-             sliderInput("mp_alpha", "Fill Transparency:", min = 0, max = 1, value = 0.7, step = 0.05),
-             selectInput("mp_palette", "Color Palette:",
-               choices = c(
-                 "Default" = "default",
-                 "Set1" = "Set1", "Set2" = "Set2", "Pastel1" = "Pastel1",
-                 "Dark2" = "Dark2", "Paired" = "Paired",
-                 "npg (Nature)" = "npg", "aaas (Science)" = "aaas",
-                 "lancet" = "lancet", "jco (JCO)" = "jco",
-                 "Black & White" = "bw_pal", "Greyscale" = "grey_pal"
-               ), selected = "default"),
-             selectInput("mp_theme", "Theme:",
-               choices = c("Classic" = "classic", "Minimal" = "minimal",
-                           "BW" = "bw", "Publication" = "pubr"), selected = "classic"),
-             hr(),
-             h5(strong("Statistical Test")),
-             selectInput("mp_test_method", "Comparison Method:",
-               choices = c(
-                 "--- Parametric (2 groups) ---" = "header_param2",
-                 "Student's t-test (pooled)" = "t.test",
-                 "Welch's t-test" = "welch",
-                 "Two Sample Z-Test" = "two_z",
-                 "--- Non-Parametric (2 groups) ---" = "header_np2",
-                 "Mann-Whitney U Test" = "wilcox.test",
-                 "Kolmogorov-Smirnov (two-sample)" = "ks_two",
-                 "--- Paired (2 groups) ---" = "header_paired",
-                 "Paired t-test" = "paired_t",
-                 "Wilcoxon Signed-Rank Test" = "wilcoxon_sr",
-                 "--- Parametric (3+ groups) ---" = "header_param3",
-                 "One-Way ANOVA" = "anova",
-                 "--- Non-Parametric (3+ groups) ---" = "header_np3",
-                 "Kruskal-Wallis Test" = "kruskal",
-                 "--- Variance Tests ---" = "header_var",
-                 "F-Test for Variances" = "f_test",
-                 "Levene's Test" = "levene",
-                 "--- Normality Tests ---" = "header_norm",
-                 "Shapiro-Wilk Test" = "shapiro",
-                 "--- Other ---" = "header_other",
-                 "None" = "none"
-               ), selected = "t.test", selectize = FALSE),
-             conditionalPanel(
-               condition = "input.mp_test_method == 'two_z'",
-               numericInput("mp_known_sigma", "Known Sigma:", value = 1, min = 0.001)
+
+             tags$details(class = "cfg-section",
+               tags$summary("Layout & Labels"),
+               textInput("mp_title", "Title:", ""),
+               textInput("mp_xlab", "X-axis Label:", ""),
+               textInput("mp_ylab", "Y-axis Label:", ""),
+               sliderInput("mp_title_size", "Title Font Size:",
+                 min = 8, max = 30, value = 16, step = 1),
+               sliderInput("mp_axis_title_size", "Axis Title Font Size:",
+                 min = 8, max = 24, value = 14, step = 1),
+               sliderInput("mp_axis_text_size", "Axis Text Font Size:",
+                 min = 6, max = 20, value = 12, step = 1),
+               sliderInput("mp_legend_size", "Legend Font Size:",
+                 min = 6, max = 20, value = 11, step = 1),
+               checkboxInput("mp_title_bold", "Bold Title", TRUE),
+               checkboxInput("mp_title_italic", "Italic Title", FALSE),
+               checkboxInput("mp_axis_title_bold", "Bold Axis Titles", FALSE),
+               checkboxInput("mp_axis_title_italic", "Italic Axis Titles", FALSE),
+               selectInput("mp_theme", "Theme:",
+                 choices = c(
+                   "Classic" = "classic",
+                   "Minimal" = "minimal",
+                   "BW" = "bw",
+                   "Light" = "light",
+                   "Publication (theme_pubr)" = "pubr",
+                   "void" = "void"
+                 ), selected = "classic"),
+               checkboxInput("mp_show_legend", "Show Legend", TRUE),
+               checkboxInput("mp_coord_flip", "Flip Coordinates", FALSE),
+               checkboxInput("mp_underline_title", "Underline Title", FALSE)
              ),
-             conditionalPanel(
-               condition = "input.mp_test_method == 'two_z'",
-               numericInput("mp_known_sigma2", "Known Sigma (Group 2):", value = 1, min = 0.001)
+
+             tags$details(class = "cfg-section",
+               tags$summary("Error Bars & Overlays"),
+               checkboxInput("mp_show_mean", "Show Mean Point", FALSE),
+               checkboxInput("mp_show_errorbar", "Show Error Bars", FALSE),
+               conditionalPanel(
+                 condition = "input.mp_show_errorbar == true",
+                 selectInput("mp_errorbar_type", "Error Bar Type:",
+                   choices = c("SE" = "se", "SD" = "sd",
+                               "95% CI" = "ci", "IQR" = "iqr")),
+                 sliderInput("mp_errorbar_width", "Error Bar Width:",
+                   min = 0, max = 0.8, value = 0.2, step = 0.05)
+               ),
+               checkboxInput("mp_show_jitter", "Overlay Jitter Points", FALSE),
+               conditionalPanel(
+                 condition = "input.mp_show_jitter == true",
+                 sliderInput("mp_jitter_width", "Jitter Width:",
+                   min = 0, max = 0.5, value = 0.15, step = 0.01),
+                 sliderInput("mp_jitter_alpha", "Jitter Alpha:",
+                   min = 0, max = 1, value = 0.5, step = 0.05)
+               )
              ),
-             checkboxInput("mp_show_signif", "Show significance on plots", TRUE),
-             selectInput("mp_signif_label", "Significance Label:",
-               choices = c("Stars (*, **, ***)" = "p.signif",
-                           "Exact p-value" = "p.format"), selected = "p.signif"),
-             hr(),
-             h5(strong("Download")),
-             fluidRow(
-               column(4, numericInput("mp_dl_width", "W (cm):", value = 18, min = 5, max = 50)),
-               column(4, numericInput("mp_dl_height", "H (cm):", value = 14, min = 5, max = 50)),
-               column(4, numericInput("mp_dl_dpi", "DPI:", value = 300, min = 72, max = 600))
+
+             tags$details(class = "cfg-section",
+               tags$summary("Significance"),
+               selectInput("mp_test_method", "Comparison Method:",
+                 choices = c(
+                   "--- Parametric (2 groups) ---" = "header_param2",
+                   "Student's t-test (pooled)" = "t.test",
+                   "Welch's t-test" = "welch",
+                   "Two Sample Z-Test" = "two_z",
+                   "--- Non-Parametric (2 groups) ---" = "header_np2",
+                   "Mann-Whitney U Test" = "wilcox.test",
+                   "Kolmogorov-Smirnov (two-sample)" = "ks_two",
+                   "--- Paired (2 groups) ---" = "header_paired",
+                   "Paired t-test" = "paired_t",
+                   "Wilcoxon Signed-Rank Test" = "wilcoxon_sr",
+                   "--- Parametric (3+ groups) ---" = "header_param3",
+                   "One-Way ANOVA" = "anova",
+                   "--- Non-Parametric (3+ groups) ---" = "header_np3",
+                   "Kruskal-Wallis Test" = "kruskal",
+                   "--- Variance Tests ---" = "header_var",
+                   "F-Test for Variances" = "f_test",
+                   "Levene's Test" = "levene",
+                   "--- Normality Tests ---" = "header_norm",
+                   "Shapiro-Wilk Test" = "shapiro",
+                   "--- Other ---" = "header_other",
+                   "None" = "none"
+                 ), selected = "t.test", selectize = FALSE),
+               conditionalPanel(
+                 condition = "input.mp_test_method == 'two_z'",
+                 numericInput("mp_known_sigma", "Known Sigma:", value = 1, min = 0.001)
+               ),
+               conditionalPanel(
+                 condition = "input.mp_test_method == 'two_z'",
+                 numericInput("mp_known_sigma2", "Known Sigma (Group 2):", value = 1, min = 0.001)
+               ),
+               checkboxInput("mp_show_signif", "Show significance on plots", TRUE),
+               conditionalPanel(
+                 condition = "input.mp_show_signif == true",
+                 selectInput("mp_signif_style", "Significance Display Style:",
+                   choices = c("Text annotation" = "text",
+                               "Bracket bars" = "bars"),
+                   selected = "text"),
+                 selectInput("mp_signif_label", "Significance Label:",
+                   choices = c("Stars (*, **, ***)" = "p.signif",
+                               "Exact p-value" = "p.format"), selected = "p.signif"),
+                 sliderInput("mp_signif_step", "Bar Step Increase:",
+                   min = 0, max = 0.15, value = 0.05, step = 0.01),
+                 sliderInput("mp_signif_text_size", "Significance Text Size:",
+                   min = 2, max = 8, value = 3.5, step = 0.5)
+               )
              ),
+
+             tags$details(class = "cfg-section",
+               tags$summary("Spacing & Export"),
+               sliderInput("mp_width_adj", "Group Width (dodge):",
+                 min = 0.2, max = 1.2, value = 0.75, step = 0.05),
+               numericInput("mp_dl_width", "Download Width (cm):",
+                 value = 18, min = 5, max = 50, step = 1),
+               numericInput("mp_dl_height", "Download Height (cm):",
+                 value = 14, min = 5, max = 50, step = 1),
+               numericInput("mp_dl_dpi", "Download DPI:",
+                 value = 300, min = 72, max = 600, step = 50)
+             ),
+
              downloadButton("mp_download_png", "PNG", class = "btn-primary"),
              downloadButton("mp_download_svg", "SVG", class = "btn-primary",
                style = "margin-left:5px;")
@@ -1361,28 +1764,82 @@ server <- function(input, output, session) {
    results_history = list(), # list of result strings
    raw_uploaded = NULL,    # raw uploaded data frame
    current_result = NULL,  # most recent test result text
-   data_source = NULL,     # "manual" or "file"
-   data_source_detail = NULL # extra info (e.g. filename)
+  data_source = NULL,     # "manual" or "file"
+  data_source_detail = NULL, # extra info (e.g. filename)
+  mp_data_source = NULL,     # "paste" or "file" for multi-parameter loader
+  mp_data_detail = NULL,     # descriptive detail (e.g. filename)
+  mp_configured = FALSE      # TRUE after column config is successfully applied
  )
  
  # --- Sidebar data source indicator ------------------------------------------
  output$sidebar_data_source <- renderUI({
    src <- rv$data_source
-   if (is.null(src)) {
-     div(class = "data-source-sidebar data-source-banner source-none",
-       icon("exclamation-triangle"), " No data loaded"
-     )
-   } else if (src == "manual") {
-     div(class = "data-source-sidebar data-source-banner source-manual",
-       icon("keyboard"), " Active: Manual Entry", br(),
-       tags$small(rv$data_source_detail)
-     )
-   } else if (src == "file") {
-     div(class = "data-source-sidebar data-source-banner source-file",
-       icon("file"), " Active: File Upload", br(),
-       tags$small(rv$data_source_detail)
-     )
-   }
+  mp_src <- rv$mp_data_source
+
+  main_label <- "No data"
+  main_detail <- "Use Data Input"
+  main_icon <- icon("exclamation-triangle")
+  main_badge <- span(class = "status-pill warn", "None")
+
+  if (!is.null(src) && src == "manual") {
+    main_label <- "Manual active"
+    main_detail <- if (!is.null(rv$data_source_detail) && nzchar(rv$data_source_detail)) {
+      rv$data_source_detail
+    } else {
+      "Main data source"
+    }
+    main_icon <- icon("keyboard")
+    main_badge <- span(class = "status-pill ok", "Ready")
+  } else if (!is.null(src) && src == "file") {
+    main_label <- "File active"
+    main_detail <- if (!is.null(rv$data_source_detail) && nzchar(rv$data_source_detail)) {
+      rv$data_source_detail
+    } else {
+      "Main data source"
+    }
+    main_icon <- icon("file")
+    main_badge <- span(class = "status-pill ok", "Ready")
+  }
+
+  mp_label <- "No multi-parameter"
+  mp_detail <- "Load in Multi-Parameter tab"
+  mp_icon <- icon("layer-group")
+  mp_badge <- span(class = "status-pill warn", "Empty")
+
+  if (!is.null(mp_src)) {
+    mode_text <- if (mp_src == "paste") "Paste" else "File"
+    state_text <- if (isTRUE(rv$mp_configured)) "Ready" else "Raw"
+    mp_label <- paste0(mode_text, " (", state_text, ")")
+    mp_detail <- if (!is.null(rv$mp_data_detail) && nzchar(rv$mp_data_detail)) {
+      rv$mp_data_detail
+    } else {
+      "Multi-Parameter module"
+    }
+    mp_icon <- if (mp_src == "paste") icon("keyboard") else icon("file")
+    mp_badge <- if (isTRUE(rv$mp_configured)) {
+      span(class = "status-pill ok", "Ready")
+    } else {
+      span(class = "status-pill warn", "Pending")
+    }
+  }
+
+  div(class = "sidebar-status-panel",
+    div(class = "sidebar-status-title", "Data Status"),
+    div(class = "sidebar-status-row",
+      div(class = "sidebar-status-main",
+        main_icon, " Main: ", main_label,
+        span(class = "sidebar-status-detail", main_detail)
+      ),
+      main_badge
+    ),
+    div(class = "sidebar-status-row",
+      div(class = "sidebar-status-main",
+        mp_icon, " Multi: ", mp_label,
+        span(class = "sidebar-status-detail", mp_detail)
+      ),
+      mp_badge
+    )
+  )
  })
  
  # --- Inline data source banner (reusable) -----------------------------------
@@ -1611,15 +2068,17 @@ server <- function(input, output, session) {
        gcol <- input$file_group_col
        vcol <- input$file_value_col
        groups <- unique(df[[gcol]])
+      groups <- groups[!is.na(groups) & trimws(as.character(groups)) != ""]
        data_list <- list()
        names_vec <- character(0)
        for (g in groups) {
+        group_name <- trimws(as.character(g))
          vals <- suppressWarnings(
            as.numeric(df[[vcol]][df[[gcol]] == g]))
          vals <- vals[!is.na(vals)]
          if (length(vals) > 0) {
-           data_list[[as.character(g)]] <- vals
-           names_vec <- c(names_vec, as.character(g))
+          data_list[[group_name]] <- vals
+          names_vec <- c(names_vec, group_name)
          }
        }
      }
@@ -1770,20 +2229,26 @@ server <- function(input, output, session) {
    if (test == "km") {
      fluidRow(
        column(4, selectInput("surv_time", "Time Variable (Group):",
-         choices = gc)),
+        choices = gc,
+        selected = gc[1])),
        column(4, selectInput("surv_event", "Event/Status (Group):",
-         choices = gc)),
+        choices = gc,
+        selected = if (length(gc) > 1) gc[2] else gc[1])),
        column(4, selectInput("surv_strata", "Strata/Group (optional):",
-         choices = c("None" = "none", gc)))
+        choices = c("None" = "none", gc),
+        selected = "none"))
      )
    } else {
      fluidRow(
        column(3, selectInput("surv_actual", "Actual Labels (0/1):",
-         choices = gc)),
+        choices = gc,
+        selected = gc[1])),
        column(3, selectInput("surv_pred1", "Predictor 1 Scores:",
-         choices = gc)),
+        choices = gc,
+        selected = if (length(gc) > 1) gc[2] else gc[1])),
        column(3, selectInput("surv_pred2", "Predictor 2 Scores:",
-         choices = gc)),
+        choices = gc,
+        selected = if (length(gc) > 2) gc[3] else if (length(gc) > 1) gc[2] else gc[1])),
        column(3,
          conditionalPanel(
            condition = "input.surv_test == 'delong_paired'",
@@ -1803,21 +2268,93 @@ server <- function(input, output, session) {
    if (test == "two_anova") {
      fluidRow(
        column(4, selectInput("multi_factorA", "Factor A (Group):",
-         choices = gc)),
+        choices = gc,
+        selected = gc[1])),
        column(4, selectInput("multi_factorB", "Factor B (Group):",
-         choices = gc)),
+        choices = gc,
+        selected = if (length(gc) > 1) gc[2] else gc[1])),
        column(4, selectInput("multi_response", "Response (Group):",
-         choices = gc))
+        choices = gc,
+        selected = if (length(gc) > 2) gc[3] else if (length(gc) > 1) gc[2] else gc[1]))
      )
    } else {
+    manova_default <- if (length(gc) > 2) gc[2:3] else if (length(gc) > 1) gc[2] else gc[1]
      fluidRow(
        column(4, selectInput("multi_manova_group", "Grouping Variable:",
-         choices = gc)),
+        choices = gc,
+        selected = gc[1])),
        column(8, checkboxGroupInput("multi_manova_resp",
-         "Response Variables:", choices = gc, inline = TRUE))
+        "Response Variables:", choices = gc, selected = manova_default, inline = TRUE))
      )
    }
  })
+
+# Auto-detect coding values for survival/ROC selectors
+detect_surv_codes <- function(values) {
+  x <- suppressWarnings(as.numeric(values))
+  x <- x[is.finite(x)]
+  ux <- sort(unique(x))
+  if (length(ux) < 2) return(NULL)
+  list(
+    event = ux[length(ux)],
+    censor = ux[1],
+    positive = ux[length(ux)]
+  )
+}
+
+observeEvent(input$surv_event, {
+  req(rv$data, input$surv_event)
+  vals <- rv$data[[input$surv_event]]
+  det <- detect_surv_codes(vals)
+  if (!is.null(det)) {
+    updateNumericInput(session, "surv_event_code", value = det$event)
+    updateNumericInput(session, "surv_censor_code", value = det$censor)
+  }
+}, ignoreInit = TRUE)
+
+observeEvent(input$surv_actual, {
+  req(rv$data, input$surv_actual)
+  vals <- rv$data[[input$surv_actual]]
+  det <- detect_surv_codes(vals)
+  if (!is.null(det)) {
+    updateNumericInput(session, "surv_positive_label", value = det$positive)
+  }
+}, ignoreInit = TRUE)
+
+output$surv_km_detect_hint <- renderUI({
+  if (!identical(input$surv_test, "km")) return(NULL)
+  req(rv$data, input$surv_event)
+  vals <- suppressWarnings(as.numeric(rv$data[[input$surv_event]]))
+  vals <- vals[is.finite(vals)]
+  ux <- sort(unique(vals))
+  if (length(ux) == 0) {
+    return(helpText("No numeric values detected in selected Event/Status group."))
+  }
+  preview <- paste(head(ux, 6), collapse = ", ")
+  if (length(ux) > 6) preview <- paste0(preview, ", ...")
+  helpText(
+    paste0("Detected event values: ", preview,
+      " | Current mapping: event=", input$surv_event_code,
+      ", censor=", input$surv_censor_code)
+  )
+})
+
+output$surv_roc_detect_hint <- renderUI({
+  if (!(identical(input$surv_test, "delong_ind") || identical(input$surv_test, "delong_paired"))) return(NULL)
+  req(rv$data, input$surv_actual)
+  vals <- suppressWarnings(as.numeric(rv$data[[input$surv_actual]]))
+  vals <- vals[is.finite(vals)]
+  ux <- sort(unique(vals))
+  if (length(ux) == 0) {
+    return(helpText("No numeric values detected in selected Actual Labels group."))
+  }
+  preview <- paste(head(ux, 6), collapse = ", ")
+  if (length(ux) > 6) preview <- paste0(preview, ", ...")
+  helpText(
+    paste0("Detected label values: ", preview,
+      " | Current positive label=", input$surv_positive_label)
+  )
+})
  
  # ===========================================================================
  # HELPER: Format result output
@@ -1927,6 +2464,33 @@ server <- function(input, output, session) {
    rv$results_history <- c(rv$results_history, list(text))
    rv$current_result <- text
  }
+
+validate_distinct_groups <- function(group1, group2,
+                                     label = "Please select two different groups.") {
+  if (is.null(group1) || is.null(group2) || identical(group1, group2)) {
+    showNotification(label, type = "error")
+    return(FALSE)
+  }
+  TRUE
+}
+
+validate_min_sample <- function(x, min_n, label) {
+  if (length(x) < min_n) {
+    showNotification(paste0(label, " requires at least ", min_n, " observations."),
+      type = "error")
+    return(FALSE)
+  }
+  TRUE
+}
+
+validate_min_sample_pair <- function(x, y, min_n, label) {
+  if (length(x) < min_n || length(y) < min_n) {
+    showNotification(paste0(label, " requires at least ", min_n,
+      " observations in each selected group."), type = "error")
+    return(FALSE)
+  }
+  TRUE
+}
  
  # ===========================================================================
  # PARAMETRIC TESTS
@@ -1945,6 +2509,7 @@ server <- function(input, output, session) {
      if (test == "one_t") {
        req(input$param_group1)
        x <- rv$data[[input$param_group1]]
+      if (!validate_min_sample(x, 2, "One Sample T-Test")) return()
        result <- t.test(x, mu = input$param_mu,
          alternative = alt, conf.level = conf)
        test_name <- "One Sample T-Test"
@@ -1970,24 +2535,38 @@ server <- function(input, output, session) {
        
      } else if (test == "two_t_pooled") {
        req(input$param_group1, input$param_group2)
+      if (!validate_distinct_groups(input$param_group1, input$param_group2,
+        "Two Sample T-Test requires two different groups.")) return()
        x <- rv$data[[input$param_group1]]
        y <- rv$data[[input$param_group2]]
+      if (!validate_min_sample_pair(x, y, 2, "Two Sample T-Test")) return()
        result <- t.test(x, y, var.equal = TRUE,
          alternative = alt, conf.level = conf)
        test_name <- "Two Sample T-Test (Pooled Variance)"
        
      } else if (test == "two_t_welch") {
        req(input$param_group1, input$param_group2)
+      if (!validate_distinct_groups(input$param_group1, input$param_group2,
+        "Welch's T-Test requires two different groups.")) return()
        x <- rv$data[[input$param_group1]]
        y <- rv$data[[input$param_group2]]
+      if (!validate_min_sample_pair(x, y, 2, "Welch's T-Test")) return()
        result <- t.test(x, y, var.equal = FALSE,
          alternative = alt, conf.level = conf)
        test_name <- "Two Sample T-Test (Welch's)"
        
      } else if (test == "two_z") {
        req(input$param_group1, input$param_group2)
+      if (!validate_distinct_groups(input$param_group1, input$param_group2,
+        "Two Sample Z-Test requires two different groups.")) return()
        x <- rv$data[[input$param_group1]]
        y <- rv$data[[input$param_group2]]
+      if (!validate_min_sample_pair(x, y, 1, "Two Sample Z-Test")) return()
+      if (input$param_sigma <= 0 || input$param_sigma2 <= 0) {
+        showNotification("Known sigma values must be greater than 0 for Two Sample Z-Test.",
+          type = "error")
+        return()
+      }
        nx <- length(x); ny <- length(y)
        z <- (mean(x) - mean(y)) /
          sqrt(input$param_sigma^2 / nx + input$param_sigma2^2 / ny)
@@ -2067,6 +2646,10 @@ server <- function(input, output, session) {
          }
        }
        
+       if (is.na(p_val) || is.na(f_val)) {
+         showNotification("Could not extract F/p-value from RM ANOVA. Check that groups have sufficient data.", type = "error")
+         return()
+       }
        result <- list(
          statistic = c(F = f_val), p.value = p_val,
          method = "Repeated Measures ANOVA"
@@ -2109,8 +2692,11 @@ server <- function(input, output, session) {
      
      if (test == "mann_whitney") {
        req(input$np_group1, input$np_group2)
+      if (!validate_distinct_groups(input$np_group1, input$np_group2,
+        "Mann-Whitney U Test requires two different groups.")) return()
        x <- rv$data[[input$np_group1]]
        y <- rv$data[[input$np_group2]]
+      if (!validate_min_sample_pair(x, y, 1, "Mann-Whitney U Test")) return()
        nx <- length(x)
        ny <- length(y)
        use_exact <- input$np_exact
@@ -2289,18 +2875,40 @@ server <- function(input, output, session) {
      
      if (test == "paired_t") {
        req(input$pd_group1, input$pd_group2)
+      if (!validate_distinct_groups(input$pd_group1, input$pd_group2,
+        "Paired T-Test requires two different groups.")) return()
        x <- rv$data[[input$pd_group1]]
        y <- rv$data[[input$pd_group2]]
        min_n <- min(length(x), length(y))
+      if (min_n < 2) {
+        showNotification("Paired T-Test requires at least 2 paired observations.",
+          type = "error")
+        return()
+      }
+      if (length(x) != length(y)) {
+        showNotification(paste0("Groups have unequal lengths (", length(x), " vs ", length(y),
+          "). Truncating to ", min_n, " paired observations."), type = "warning")
+      }
        result <- t.test(x[1:min_n], y[1:min_n], paired = TRUE,
          alternative = alt, conf.level = conf)
        test_name <- "Paired T-Test"
        
      } else if (test == "wilcoxon_sr") {
        req(input$pd_group1, input$pd_group2)
+      if (!validate_distinct_groups(input$pd_group1, input$pd_group2,
+        "Wilcoxon Signed Rank Test requires two different groups.")) return()
        x <- rv$data[[input$pd_group1]]
        y <- rv$data[[input$pd_group2]]
        min_n <- min(length(x), length(y))
+      if (min_n < 1) {
+        showNotification("Wilcoxon Signed Rank Test requires at least 1 paired observation.",
+          type = "error")
+        return()
+      }
+      if (length(x) != length(y)) {
+        showNotification(paste0("Groups have unequal lengths (", length(x), " vs ", length(y),
+          "). Truncating to ", min_n, " paired observations."), type = "warning")
+      }
        use_exact <- input$pd_exact
        use_correct <- input$pd_correct
        
@@ -2361,7 +2969,15 @@ server <- function(input, output, session) {
        req(length(groups_sel) >= 3)
        
        min_n <- min(sapply(groups_sel, function(g) length(rv$data[[g]])))
+       if (min_n < 2) {
+         showNotification("Friedman test requires at least 2 observations per group.", type = "error")
+         return()
+       }
        mat <- sapply(groups_sel, function(g) rv$data[[g]][1:min_n])
+       if (!is.matrix(mat)) {
+         showNotification("Could not form a valid data matrix for Friedman test.", type = "error")
+         return()
+       }
        result <- friedman.test(mat)
        test_name <- "Friedman Test"
      }
@@ -2402,6 +3018,10 @@ server <- function(input, output, session) {
        req(input$os_group1)
        x <- rv$data[[input$os_group1]]
        n <- length(x)
+       if (is.null(input$os_sigma) || input$os_sigma <= 0) {
+         showNotification("Known sigma must be greater than 0 for Z-Test.", type = "error")
+         return()
+       }
        z <- (mean(x) - input$os_mu) / (input$os_sigma / sqrt(n))
        p <- 2 * pnorm(-abs(z))  # two-sided (one-sample tab)
        ci <- mean(x) + c(-1, 1) * qnorm(0.975) * input$os_sigma / sqrt(n)
@@ -2419,6 +3039,14 @@ server <- function(input, output, session) {
          showNotification(
            "Hypothesized proportion must be between 0 and 1 (exclusive).",
            type = "error")
+         return()
+       }
+       if (is.null(input$os_prop_n) || input$os_prop_n < 1) {
+         showNotification("Number of trials must be at least 1.", type = "error")
+         return()
+       }
+       if (is.null(input$os_prop_x) || input$os_prop_x < 0 || input$os_prop_x > input$os_prop_n) {
+         showNotification("Successes must be between 0 and total trials.", type = "error")
          return()
        }
        result <- prop.test(input$os_prop_x, input$os_prop_n, p = p0)
@@ -2496,6 +3124,10 @@ server <- function(input, output, session) {
        req(input$var_group1)
        x <- rv$data[[input$var_group1]]
        n <- length(x)
+       if (is.null(input$var_sigma0) || input$var_sigma0 <= 0) {
+         showNotification("Hypothesized variance must be greater than 0.", type = "error")
+         return()
+       }
        s2 <- var(x)
        chi2 <- (n - 1) * s2 / input$var_sigma0
        df <- n - 1
@@ -2514,8 +3146,11 @@ server <- function(input, output, session) {
        
      } else if (test == "f_test") {
        req(input$var_group1, input$var_group2)
+      if (!validate_distinct_groups(input$var_group1, input$var_group2,
+        "F Test for Variances requires two different groups.")) return()
        x <- rv$data[[input$var_group1]]
        y <- rv$data[[input$var_group2]]
+      if (!validate_min_sample_pair(x, y, 2, "F Test for Variances")) return()
        result <- var.test(x, y, alternative = alt)
        test_name <- "F Test for Variances"
        
@@ -2611,8 +3246,11 @@ server <- function(input, output, session) {
        
      } else if (test == "ks_two") {
        req(input$norm_group1, input$norm_group2)
+      if (!validate_distinct_groups(input$norm_group1, input$norm_group2,
+        "Two-Sample KS Test requires two different groups.")) return()
        x <- rv$data[[input$norm_group1]]
        y <- rv$data[[input$norm_group2]]
+      if (!validate_min_sample_pair(x, y, 1, "Two-Sample KS Test")) return()
        result <- ks.test(x, y)
        test_name <- "Two-Sample Kolmogorov-Smirnov Test"
      }
@@ -2644,23 +3282,54 @@ server <- function(input, output, session) {
      extra <- ""
      
      if (test == "km") {
-       req(input$surv_time, input$surv_event)
-       time_vals <- rv$data[[input$surv_time]]
-       event_vals <- rv$data[[input$surv_event]]
-       min_n <- min(length(time_vals), length(event_vals))
-       time_vals <- time_vals[1:min_n]
-       event_vals <- event_vals[1:min_n]
-       
-       if (input$surv_strata != "none") {
-         strata_vals <- rv$data[[input$surv_strata]]
-         strata_vals <- strata_vals[1:min_n]
-         surv_df <- data.frame(time = time_vals, event = event_vals,
-           strata = factor(strata_vals))
-         surv_obj <- Surv(surv_df$time, surv_df$event)
-         fit <- survfit(surv_obj ~ strata, data = surv_df)
+      req(input$surv_time, input$surv_event, input$surv_strata)
+      time_vals <- suppressWarnings(as.numeric(rv$data[[input$surv_time]]))
+      event_raw <- suppressWarnings(as.numeric(rv$data[[input$surv_event]]))
+      min_n <- min(length(time_vals), length(event_raw))
+      time_vals <- time_vals[1:min_n]
+      event_raw <- event_raw[1:min_n]
+
+      event_code <- input$surv_event_code
+      censor_code <- input$surv_censor_code
+      if (is.null(event_code) || is.null(censor_code) || identical(event_code, censor_code)) {
+        showNotification("Event and censor codes must be different.", type = "error")
+        return()
+      }
+      event_vals <- ifelse(event_raw == event_code, 1,
+        ifelse(event_raw == censor_code, 0, NA_real_))
+      n_mapped <- sum(!is.na(event_vals))
+      if (n_mapped == 0) {
+        showNotification("No event values matched the event/censor codes. Check your codes.", type = "error")
+        return()
+      }
+      if (n_mapped < length(event_raw) * 0.5) {
+        showNotification(paste0("Warning: only ", n_mapped, " of ", length(event_raw),
+          " event values matched the codes. Unmatched rows will be excluded."), type = "warning")
+      }
+
+      strata_selected <- !is.null(input$surv_strata) && input$surv_strata != "none"
+      if (strata_selected) {
+        strata_vals <- rv$data[[input$surv_strata]]
+        strata_vals <- strata_vals[1:min_n]
+        valid <- is.finite(time_vals) & !is.na(event_vals) & !is.na(strata_vals)
+        surv_df <- data.frame(time = time_vals[valid], event = event_vals[valid],
+          strata = factor(strata_vals[valid]))
+
+        if (nrow(surv_df) < 2 || sum(surv_df$event %in% c(0, 1)) < 2) {
+          showNotification("Not enough valid time/event rows for Kaplan-Meier analysis.", type = "error")
+          return()
+        }
+        if (nlevels(surv_df$strata) < 2) {
+          showNotification("Selected strata has fewer than 2 valid groups; running without strata.", type = "warning")
+          strata_selected <- FALSE
+        }
+      }
+
+      if (strata_selected) {
+        fit <- survfit(Surv(surv_df$time, surv_df$event) ~ strata, data = surv_df)
          
          # Log-rank test
-         lr <- survdiff(surv_obj ~ strata, data = surv_df)
+        lr <- survdiff(Surv(surv_df$time, surv_df$event) ~ strata, data = surv_df)
          p_val <- 1 - pchisq(lr$chisq, length(lr$n) - 1)
          
          result <- list(
@@ -2673,9 +3342,13 @@ server <- function(input, output, session) {
              risk.table = TRUE, conf.int = TRUE)
          })
        } else {
-         surv_df <- data.frame(time = time_vals, event = event_vals)
-         surv_obj <- Surv(surv_df$time, surv_df$event)
-         fit <- survfit(surv_obj ~ 1, data = surv_df)
+        valid <- is.finite(time_vals) & !is.na(event_vals)
+        surv_df <- data.frame(time = time_vals[valid], event = event_vals[valid])
+        if (nrow(surv_df) < 2 || sum(surv_df$event %in% c(0, 1)) < 2) {
+          showNotification("Not enough valid time/event rows for Kaplan-Meier analysis.", type = "error")
+          return()
+        }
+        fit <- survfit(Surv(surv_df$time, surv_df$event) ~ 1, data = surv_df)
          
          result <- list(
            statistic = NULL, p.value = NULL,
@@ -2699,13 +3372,30 @@ server <- function(input, output, session) {
        
      } else if (test %in% c("delong_ind", "delong_paired")) {
        req(input$surv_actual, input$surv_pred1, input$surv_pred2)
-       actual <- rv$data[[input$surv_actual]]
-       pred1 <- rv$data[[input$surv_pred1]]
-       pred2 <- rv$data[[input$surv_pred2]]
-       min_n <- min(length(actual), length(pred1), length(pred2))
-       actual <- actual[1:min_n]
-       pred1 <- pred1[1:min_n]
-       pred2 <- pred2[1:min_n]
+      actual_raw <- suppressWarnings(as.numeric(rv$data[[input$surv_actual]]))
+      pred1 <- suppressWarnings(as.numeric(rv$data[[input$surv_pred1]]))
+      pred2 <- suppressWarnings(as.numeric(rv$data[[input$surv_pred2]]))
+      min_n <- min(length(actual_raw), length(pred1), length(pred2))
+      actual_raw <- actual_raw[1:min_n]
+      pred1 <- pred1[1:min_n]
+      pred2 <- pred2[1:min_n]
+
+      valid <- is.finite(actual_raw) & is.finite(pred1) & is.finite(pred2)
+      if (sum(valid) < 4) {
+        showNotification("Not enough valid rows for ROC/DeLong analysis.", type = "error")
+        return()
+      }
+      actual_raw <- actual_raw[valid]
+      pred1 <- pred1[valid]
+      pred2 <- pred2[valid]
+
+      pos_label <- input$surv_positive_label
+      if (is.null(pos_label)) pos_label <- 1
+      actual <- ifelse(actual_raw == pos_label, 1, 0)
+      if (length(unique(actual)) < 2) {
+        showNotification("Actual labels must contain both classes after mapping positive label.", type = "error")
+        return()
+      }
        
        roc1 <- pROC::roc(actual, pred1, quiet = TRUE)
        roc2 <- pROC::roc(actual, pred2, quiet = TRUE)
@@ -2764,7 +3454,7 @@ server <- function(input, output, session) {
        req(input$multi_factorA, input$multi_factorB, input$multi_response)
        fa <- rv$data[[input$multi_factorA]]
        fb <- rv$data[[input$multi_factorB]]
-       resp <- rv$data[[input$multi_response]]
+      resp <- suppressWarnings(as.numeric(rv$data[[input$multi_response]]))
        min_n <- min(length(fa), length(fb), length(resp))
        
        df <- data.frame(
@@ -2772,6 +3462,22 @@ server <- function(input, output, session) {
          factorB = factor(fb[1:min_n]),
          response = resp[1:min_n]
        )
+
+      if (isTRUE(input$multi_remove_missing)) {
+        df <- df[stats::complete.cases(df), , drop = FALSE]
+      }
+      if (nrow(df) < 3) {
+        showNotification("Two Way ANOVA requires at least 3 complete rows.", type = "error")
+        return()
+      }
+      if (nlevels(df$factorA) < 2 || nlevels(df$factorB) < 2) {
+        showNotification("Factor A and Factor B each need at least 2 levels.", type = "error")
+        return()
+      }
+      if (length(unique(df$response)) < 2) {
+        showNotification("Response variable must have variation for ANOVA.", type = "error")
+        return()
+      }
        
        aov_res <- aov(response ~ factorA * factorB, data = df)
        aov_text <- paste(capture.output(summary(aov_res)), collapse = "\n")
@@ -2815,11 +3521,28 @@ server <- function(input, output, session) {
        grp <- rv$data[[grp_name]]
        min_n <- min(length(grp),
          min(sapply(resp_names, function(r) length(rv$data[[r]]))))
-       
-       resp_mat <- sapply(resp_names, function(r) rv$data[[r]][1:min_n])
-       df <- data.frame(group = factor(grp[1:min_n]))
-       
-       manova_res <- manova(resp_mat ~ group, data = df)
+
+      df <- data.frame(group = factor(grp[1:min_n]), stringsAsFactors = FALSE)
+      for (r in resp_names) {
+        df[[r]] <- suppressWarnings(as.numeric(rv$data[[r]][1:min_n]))
+      }
+      if (isTRUE(input$multi_remove_missing)) {
+        df <- df[stats::complete.cases(df), , drop = FALSE]
+      }
+      if (nrow(df) < 3) {
+        showNotification("MANOVA requires at least 3 complete rows.", type = "error")
+        return()
+      }
+      if (nlevels(df$group) < 2) {
+        showNotification("Grouping variable must have at least 2 levels.", type = "error")
+        return()
+      }
+      if (any(vapply(df[resp_names], function(x) length(unique(x)) < 2, logical(1)))) {
+        showNotification("Each MANOVA response variable must have variation.", type = "error")
+        return()
+      }
+
+      manova_res <- manova(do.call(cbind, df[resp_names]) ~ group, data = df)
        manova_summ <- summary(manova_res)
        manova_text <- paste(capture.output(print(manova_summ)),
          collapse = "\n")
@@ -3320,6 +4043,23 @@ server <- function(input, output, session) {
    df
  })
  
+ # Helper: custom whisker stat function for percentile/SD box plots
+ whisker_stat_fun <- function(wtype) {
+   function(x) {
+     qs <- quantile(x, c(0.25, 0.5, 0.75), na.rm = TRUE)
+     if (wtype == "percentile") {
+       lo <- quantile(x, 0.05, na.rm = TRUE)
+       hi <- quantile(x, 0.95, na.rm = TRUE)
+     } else {
+       m <- mean(x, na.rm = TRUE); s <- sd(x, na.rm = TRUE)
+       lo <- m - s; hi <- m + s
+     }
+     data.frame(ymin = unname(lo), lower = unname(qs[1]),
+                middle = unname(qs[2]), upper = unname(qs[3]),
+                ymax = unname(hi))
+   }
+ }
+
  # Build the main plot
  build_plot <- reactive({
    req(plot_data())
@@ -3375,14 +4115,30 @@ server <- function(input, output, session) {
      border_cols <- NULL
    }
    
+   # Whisker type: default, min/max, percentile, or SD
+   whisker_type <- if (!is.null(input$plot_whisker_type)) input$plot_whisker_type else "default"
+   bx_coef <- if (whisker_type == "minmax") Inf else 1.5
+   use_stat_whisker <- whisker_type %in% c("percentile", "sd")
+   
    if (pt == "box") {
-     if (!is.null(border_cols)) {
-       p <- p + geom_boxplot(aes(color = group), width = width, alpha = alpha,
-         linewidth = lw, outlier.size = ps)
+     if (use_stat_whisker) {
+       if (!is.null(border_cols)) {
+         p <- p + stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+           aes(color = group), width = width, alpha = alpha, linewidth = lw)
+       } else {
+         p <- p + stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+           width = width, alpha = alpha, linewidth = lw, color = border_col,
+           fill = if (!input$plot_use_group_colors) input$plot_fill_color else NA)
+       }
      } else {
-       p <- p + geom_boxplot(width = width, alpha = alpha,
-         linewidth = lw, outlier.size = ps, color = border_col,
-         fill = if (!input$plot_use_group_colors) input$plot_fill_color else NA)
+       if (!is.null(border_cols)) {
+         p <- p + geom_boxplot(aes(color = group), width = width, alpha = alpha,
+           linewidth = lw, outlier.size = ps, coef = bx_coef)
+       } else {
+         p <- p + geom_boxplot(width = width, alpha = alpha,
+           linewidth = lw, outlier.size = ps, color = border_col, coef = bx_coef,
+           fill = if (!input$plot_use_group_colors) input$plot_fill_color else NA)
+       }
      }
      
    } else if (pt == "violin") {
@@ -3451,19 +4207,32 @@ server <- function(input, output, session) {
      }
      
    } else if (pt == "box_jitter") {
-     if (!is.null(border_cols)) {
-       p <- p +
-         geom_boxplot(aes(color = group), width = width, alpha = alpha,
-           linewidth = lw, outlier.shape = NA) +
-         geom_jitter(aes(color = group), width = 0.15,
-           size = ps, alpha = 0.5)
+     if (use_stat_whisker) {
+       if (!is.null(border_cols)) {
+         p <- p +
+           stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+             aes(color = group), width = width, alpha = alpha, linewidth = lw) +
+           geom_jitter(aes(color = group), width = 0.15, size = ps, alpha = 0.5)
+       } else {
+         fill_val <- if (!input$plot_use_group_colors) input$plot_fill_color else NA
+         p <- p +
+           stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+             width = width, alpha = alpha, linewidth = lw, color = border_col, fill = fill_val) +
+           geom_jitter(width = 0.15, size = ps, alpha = 0.5, color = border_col)
+       }
      } else {
-       fill_val <- if (!input$plot_use_group_colors) input$plot_fill_color else NA
-       p <- p +
-         geom_boxplot(width = width, alpha = alpha, linewidth = lw,
-           outlier.shape = NA, color = border_col, fill = fill_val) +
-         geom_jitter(width = 0.15, size = ps, alpha = 0.5,
-           color = border_col)
+       if (!is.null(border_cols)) {
+         p <- p +
+           geom_boxplot(aes(color = group), width = width, alpha = alpha,
+             linewidth = lw, outlier.shape = NA, coef = bx_coef) +
+           geom_jitter(aes(color = group), width = 0.15, size = ps, alpha = 0.5)
+       } else {
+         fill_val <- if (!input$plot_use_group_colors) input$plot_fill_color else NA
+         p <- p +
+           geom_boxplot(width = width, alpha = alpha, linewidth = lw,
+             outlier.shape = NA, color = border_col, fill = fill_val, coef = bx_coef) +
+           geom_jitter(width = 0.15, size = ps, alpha = 0.5, color = border_col)
+       }
      }
      
    } else if (pt == "violin_jitter") {
@@ -3483,19 +4252,36 @@ server <- function(input, output, session) {
      }
      
    } else if (pt == "violin_box") {
-     if (!is.null(border_cols)) {
-       p <- p +
-         geom_violin(aes(color = group), width = width, alpha = alpha,
-           linewidth = lw, trim = FALSE) +
-         geom_boxplot(aes(color = group), width = width * 0.2,
-           alpha = 0.8, linewidth = lw, outlier.shape = NA)
+     if (use_stat_whisker) {
+       if (!is.null(border_cols)) {
+         p <- p +
+           geom_violin(aes(color = group), width = width, alpha = alpha,
+             linewidth = lw, trim = FALSE) +
+           stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+             aes(color = group), width = width * 0.2, alpha = 0.8, linewidth = lw)
+       } else {
+         fill_val <- if (!input$plot_use_group_colors) input$plot_fill_color else NA
+         p <- p +
+           geom_violin(width = width, alpha = alpha, linewidth = lw,
+             trim = FALSE, color = border_col, fill = fill_val) +
+           stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+             width = width * 0.2, alpha = 0.8, linewidth = lw, color = border_col, fill = fill_val)
+       }
      } else {
-       fill_val <- if (!input$plot_use_group_colors) input$plot_fill_color else NA
-       p <- p +
-         geom_violin(width = width, alpha = alpha, linewidth = lw,
-           trim = FALSE, color = border_col, fill = fill_val) +
-         geom_boxplot(width = width * 0.2, alpha = 0.8, linewidth = lw,
-           outlier.shape = NA, color = border_col, fill = fill_val)
+       if (!is.null(border_cols)) {
+         p <- p +
+           geom_violin(aes(color = group), width = width, alpha = alpha,
+             linewidth = lw, trim = FALSE) +
+           geom_boxplot(aes(color = group), width = width * 0.2,
+             alpha = 0.8, linewidth = lw, outlier.shape = NA, coef = bx_coef)
+       } else {
+         fill_val <- if (!input$plot_use_group_colors) input$plot_fill_color else NA
+         p <- p +
+           geom_violin(width = width, alpha = alpha, linewidth = lw,
+             trim = FALSE, color = border_col, fill = fill_val) +
+           geom_boxplot(width = width * 0.2, alpha = 0.8, linewidth = lw,
+             outlier.shape = NA, color = border_col, fill = fill_val, coef = bx_coef)
+       }
      }
      
    } else if (pt == "mean_dot") {
@@ -3873,6 +4659,59 @@ server <- function(input, output, session) {
  })
  
  # -----------------------------------------------------------------------
+ # Multi-Parameter: Palette preview swatches
+ # -----------------------------------------------------------------------
+ output$mp_palette_preview <- renderUI({
+   pal <- input$mp_palette
+   if (is.null(pal) || pal == "custom") return(NULL)
+   grp_levels <- mp_grp_levels()
+   n <- if (!is.null(grp_levels)) length(grp_levels) else 6
+   cols <- get_palette_colors(pal, max(n, 3))
+   if (is.null(cols)) return(NULL)
+   swatches <- lapply(cols, function(col) {
+     tags$span(style = paste0(
+       "display:inline-block; width:24px; height:18px; margin:1px;",
+       "border-radius:3px; border:1px solid #aaa;",
+       "background-color:", col, ";"
+     ))
+   })
+   div(style = "margin: 5px 0 10px 0;",
+     tags$small(tags$strong("Palette colors:")),
+     br(),
+     do.call(tagList, swatches)
+   )
+ })
+ 
+ # -----------------------------------------------------------------------
+ # Multi-Parameter: Custom per-group color pickers
+ # -----------------------------------------------------------------------
+ output$mp_custom_group_colors_ui <- renderUI({
+   pal <- input$mp_palette
+   if (is.null(pal) || pal != "custom") return(NULL)
+   grp_levels <- mp_grp_levels()
+   req(grp_levels)
+   n <- length(grp_levels)
+   fallback <- get_palette_colors("default", n)
+   
+   color_inputs <- lapply(seq_along(grp_levels), function(i) {
+     fill_val <- fallback[min(i, length(fallback))]
+     fluidRow(
+       column(12,
+         colourInput(
+           inputId = paste0("mp_custom_col_", i),
+           label = paste0(grp_levels[i], " Color:"),
+           value = fill_val
+         )
+       )
+     )
+   })
+   div(style = "margin-top: 8px;",
+     tags$small(tags$strong("Custom group colors:")),
+     do.call(tagList, color_inputs)
+   )
+ })
+ 
+ # -----------------------------------------------------------------------
  # Dynamic plot container resize (WYSIWYG) — capped to avoid overflow
  # -----------------------------------------------------------------------
  MAX_DISPLAY_H <- 700  # max pixel height for preview
@@ -4058,7 +4897,7 @@ server <- function(input, output, session) {
  }
  
  # ---- Stage raw data (shared by paste & file loaders) -----------------------
- mp_stage_raw <- function(df) {
+mp_stage_raw <- function(df, source = NULL, detail = NULL) {
    if (is.null(df) || nrow(df) < 2 || ncol(df) < 2) {
      showNotification("Could not parse data. Need at least 2 rows and 2 columns.",
                       type = "error", duration = 5)
@@ -4066,6 +4905,13 @@ server <- function(input, output, session) {
    }
    df <- as.data.frame(df, stringsAsFactors = FALSE)
    mp_raw(df)
+
+  if (is.null(detail) || length(detail) == 0 || !nzchar(as.character(detail)[1])) {
+    detail <- paste0(nrow(df), " rows, ", ncol(df), " columns")
+  }
+  rv$mp_data_source <- source
+  rv$mp_data_detail <- as.character(detail)[1]
+  rv$mp_configured <- FALSE
    # Clear processed data so user applies config
    mp_data(NULL); mp_params(NULL); mp_groups(NULL)
    showNotification(
@@ -4116,6 +4962,10 @@ server <- function(input, output, session) {
    mp_data(out)
    mp_params(valid_params)
    mp_groups(unique(out$Group))
+  rv$mp_configured <- TRUE
+  if (is.null(rv$mp_data_detail) || !nzchar(rv$mp_data_detail)) {
+    rv$mp_data_detail <- paste0(nrow(out), " samples, ", length(valid_params), " parameters")
+  }
    showNotification(paste0("\u2705 Configured: ", nrow(out), " samples, ",
                            length(valid_params), " parameters, ",
                            length(unique(out$Group)), " groups."),
@@ -4133,7 +4983,11 @@ server <- function(input, output, session) {
                 stringsAsFactors = FALSE, check.names = FALSE),
      error = function(e) NULL
    )
-   mp_stage_raw(df)
+  mp_stage_raw(
+    df,
+    source = "paste",
+    detail = "Pasted text"
+  )
  })
  
  # ---- Detect Excel sheets on file select ------------------------------------
@@ -4170,12 +5024,29 @@ server <- function(input, output, session) {
    }, error = function(e) { NULL })
    
    if (!is.null(df)) df <- as.data.frame(df)
-   mp_stage_raw(df)
+  sheet_detail <- if (ext %in% c("xls", "xlsx") && !is.null(input$mp_file_sheet) &&
+      nzchar(as.character(input$mp_file_sheet))) {
+      paste0(" | Sheet: ", input$mp_file_sheet)
+    } else {
+      ""
+    }
+  mp_stage_raw(
+    df,
+    source = "file",
+    detail = paste0(fname, sheet_detail)
+  )
  })
  
  # ---- Clear -----------------------------------------------------------------
  observeEvent(input$mp_clear, {
    mp_raw(NULL); mp_data(NULL); mp_params(NULL); mp_groups(NULL)
+  rv$mp_data_source <- NULL
+  rv$mp_data_detail <- NULL
+  rv$mp_configured <- FALSE
+  updateTextAreaInput(session, "mp_raw_text", value = "")
+  updateSelectInput(session, "mp_file_sheet", choices = NULL, selected = character(0))
+  session$sendCustomMessage("clearMpInputs", list())
+  showNotification("Multi-parameter inputs and loaded data cleared.", type = "message", duration = 3)
  })
  
  # ---- Column configuration UI (Step 2) -------------------------------------
@@ -4396,14 +5267,6 @@ server <- function(input, output, session) {
    }, error = function(e) NA_real_)
  }
 
- # Per-group normality test
- mp_compute_normality <- function(values) {
-   tryCatch({
-     if (length(values) < 3 || length(values) > 5000) return(NA_real_)
-     shapiro.test(values)$p.value
-   }, error = function(e) NA_real_)
- }
- 
  # --- Format p-value for plot annotation ------------------------------------
  mp_format_p_label <- function(p_val, style = "p.signif") {
    if (is.na(p_val)) return("")
@@ -4422,7 +5285,25 @@ server <- function(input, output, session) {
  # --- Build individual parameter plot -----------------------------------------
  mp_build_one_plot <- function(df, param, grp_levels, plot_type, palette, alpha_val,
                                 pt_size, theme_name, show_signif, test_method,
-                                signif_label, custom_ylim, ymin, ymax) {
+                                signif_label, custom_ylim, ymin, ymax,
+                                line_width = 0.8, width_adj = 0.75,
+                                bg_color = "#ffffff",
+                                title_text = "", xlab_text = "", ylab_text = "",
+                                title_size = 16, axis_title_size = 14,
+                                axis_text_size = 12, legend_size = 11,
+                                title_bold = TRUE, title_italic = FALSE,
+                                axis_title_bold = FALSE, axis_title_italic = FALSE,
+                                underline_title = FALSE,
+                                show_legend = TRUE, coord_flip = FALSE,
+                                show_mean = FALSE,
+                                show_errorbar = FALSE, errorbar_type = "se",
+                                errorbar_width = 0.2,
+                                show_jitter = FALSE, jitter_width = 0.15,
+                                jitter_alpha = 0.5,
+                                signif_step = 0.05, signif_text_size = 3.5,
+                                custom_colors = NULL,
+                                whisker_type = "default",
+                                signif_style = "text") {
    # Validate param exists in df
    if (!param %in% colnames(df)) {
      return(ggplot() + theme_void() + labs(title = paste(param, "(column not found)")))
@@ -4435,103 +5316,247 @@ server <- function(input, output, session) {
    if (nrow(sub) == 0) return(ggplot() + theme_void() + labs(title = paste(param, "(no data)")))
    
    n_grps <- length(grp_levels)
-   cols <- tryCatch(get_palette_colors(palette, max(n_grps, 3)), error = function(e) NULL)
-   if (is.null(cols)) cols <- scales::hue_pal()(n_grps)
-   cols <- cols[seq_len(n_grps)]
+   if (!is.null(custom_colors) && length(custom_colors) >= n_grps) {
+     cols <- custom_colors[seq_len(n_grps)]
+   } else {
+     cols <- tryCatch(get_palette_colors(palette, max(n_grps, 3)), error = function(e) NULL)
+     if (is.null(cols)) cols <- scales::hue_pal()(n_grps)
+     cols <- cols[seq_len(n_grps)]
+   }
+   
+   lw <- line_width
+   w <- width_adj
+   bx_coef <- if (whisker_type == "minmax") Inf else 1.5
+   use_stat_whisker <- whisker_type %in% c("percentile", "sd")
    
    p <- ggplot(sub, aes(x = Group, y = value, fill = Group)) +
      scale_fill_manual(values = cols)
    
    if (plot_type == "box") {
-     p <- p + geom_boxplot(alpha = alpha_val, width = 0.6, outlier.shape = 21)
+     if (use_stat_whisker) {
+       p <- p + stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+                             alpha = alpha_val, width = w, linewidth = lw)
+     } else {
+       p <- p + geom_boxplot(alpha = alpha_val, width = w, outlier.shape = 21,
+                             linewidth = lw, outlier.size = pt_size, coef = bx_coef)
+     }
    } else if (plot_type == "violin") {
-     p <- p + geom_violin(alpha = alpha_val, trim = FALSE)
+     p <- p + geom_violin(alpha = alpha_val, width = w, trim = FALSE, linewidth = lw)
    } else if (plot_type == "box_jitter") {
-     p <- p + geom_boxplot(alpha = alpha_val, width = 0.6, outlier.shape = NA) +
-       geom_jitter(width = 0.15, size = pt_size, alpha = 0.7, shape = 21,
-                   aes(fill = Group), color = "black", stroke = 0.3)
+     if (use_stat_whisker) {
+       p <- p + stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+                             alpha = alpha_val, width = w, linewidth = lw) +
+         geom_jitter(width = 0.15, size = pt_size, alpha = 0.7, shape = 21,
+                     aes(fill = Group), color = "black", stroke = 0.3)
+     } else {
+       p <- p + geom_boxplot(alpha = alpha_val, width = w, outlier.shape = NA, linewidth = lw, coef = bx_coef) +
+         geom_jitter(width = 0.15, size = pt_size, alpha = 0.7, shape = 21,
+                     aes(fill = Group), color = "black", stroke = 0.3)
+     }
    } else if (plot_type == "violin_jitter") {
-     p <- p + geom_violin(alpha = alpha_val, trim = FALSE) +
+     p <- p + geom_violin(alpha = alpha_val, width = w, trim = FALSE, linewidth = lw) +
        geom_jitter(width = 0.15, size = pt_size, alpha = 0.7, shape = 21,
                    aes(fill = Group), color = "black", stroke = 0.3)
    } else if (plot_type == "violin_box") {
-     p <- p + geom_violin(alpha = alpha_val, trim = FALSE) +
-       geom_boxplot(width = 0.15, alpha = 0.9, outlier.shape = NA)
+     if (use_stat_whisker) {
+       p <- p + geom_violin(alpha = alpha_val, width = w, trim = FALSE, linewidth = lw) +
+         stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+                      width = w * 0.2, alpha = 0.9, linewidth = lw)
+     } else {
+       p <- p + geom_violin(alpha = alpha_val, width = w, trim = FALSE, linewidth = lw) +
+         geom_boxplot(width = w * 0.2, alpha = 0.9, outlier.shape = NA, linewidth = lw, coef = bx_coef)
+     }
    } else if (plot_type == "bar") {
-     summ <- sub %>% group_by(Group) %>%
-       summarise(mean = mean(value), se = sd(value)/sqrt(dplyr::n()), .groups = "drop")
-     p <- ggplot(summ, aes(x = Group, y = mean, fill = Group)) +
-       geom_col(alpha = alpha_val, width = 0.6, color = "black", linewidth = 0.3) +
-       geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.2) +
-       scale_fill_manual(values = cols)
+     p <- p +
+       stat_summary(fun = mean, geom = "col", alpha = alpha_val, width = w,
+                    color = "black", linewidth = lw) +
+       stat_summary(fun.data = mean_se, geom = "errorbar",
+                    width = errorbar_width, linewidth = lw)
    } else if (plot_type == "bar_sd") {
-     summ <- sub %>% group_by(Group) %>%
-       summarise(mean = mean(value), sd = sd(value), .groups = "drop")
-     p <- ggplot(summ, aes(x = Group, y = mean, fill = Group)) +
-       geom_col(alpha = alpha_val, width = 0.6, color = "black", linewidth = 0.3) +
-       geom_errorbar(aes(ymin = mean - sd, ymax = mean + sd), width = 0.2) +
-       scale_fill_manual(values = cols)
+     sd_err_fun_bar <- function(x, ...) {
+       m <- mean(x, na.rm = TRUE); s <- sd(x, na.rm = TRUE)
+       data.frame(y = m, ymin = m - s, ymax = m + s)
+     }
+     p <- p +
+       stat_summary(fun = mean, geom = "col", alpha = alpha_val, width = w,
+                    color = "black", linewidth = lw) +
+       stat_summary(fun.data = sd_err_fun_bar, geom = "errorbar",
+                    width = errorbar_width, linewidth = lw)
    } else if (plot_type == "dot") {
      p <- p + geom_jitter(width = 0.2, size = pt_size, shape = 21,
                           color = "black", stroke = 0.3, alpha = 0.8)
    } else if (plot_type == "swarm") {
      p <- p + ggbeeswarm::geom_beeswarm(size = pt_size, shape = 21,
                                          color = "black", stroke = 0.3, alpha = 0.8)
+   } else if (plot_type == "mean_dot") {
+     sd_err_fun <- function(x, ...) {
+       m <- mean(x, na.rm = TRUE); s <- sd(x, na.rm = TRUE)
+       data.frame(y = m, ymin = m - s, ymax = m + s)
+     }
+     p <- p +
+       stat_summary(fun = mean, geom = "point", size = pt_size * 2) +
+       stat_summary(fun.data = sd_err_fun, geom = "errorbar",
+         width = errorbar_width, linewidth = lw)
+   }
+   
+   # Overlays: Mean point
+   if (show_mean && !(plot_type %in% c("bar", "bar_sd", "mean_dot"))) {
+     p <- p + stat_summary(fun = mean, geom = "point",
+       shape = 18, size = pt_size * 1.5, color = "#e74c3c")
+   }
+   
+   # Overlays: Error bars
+   if (show_errorbar && !(plot_type %in% c("bar", "bar_sd", "mean_dot"))) {
+     eb_fun <- switch(errorbar_type,
+       "se" = mean_se,
+       "sd" = function(x, ...) { m <- mean(x); s <- sd(x); data.frame(y = m, ymin = m - s, ymax = m + s) },
+       "ci" = mean_cl_normal,
+       "iqr" = median_hilow
+     )
+     p <- p + stat_summary(fun.data = eb_fun, geom = "errorbar",
+       width = errorbar_width, linewidth = lw)
+   }
+   
+   # Overlays: Jitter
+   if (show_jitter && !(plot_type %in% c("dot", "swarm", "box_jitter", "violin_jitter"))) {
+     p <- p + geom_jitter(width = jitter_width,
+       alpha = jitter_alpha, size = pt_size * 0.7)
    }
    
    # Significance annotation (uses same computation as stats table)
    if (show_signif && test_method != "none" && !grepl("^header_", test_method)) {
      ttype <- mp_test_type(test_method)
-     p_val <- NA_real_
-     if (ttype == "two_group" && n_grps >= 2) {
-       g1 <- sub$value[sub$Group == grp_levels[1]]
-       g2 <- sub$value[sub$Group == grp_levels[2]]
-       p_val <- mp_compute_pvalue(g1, g2, test_method)
-     } else if (ttype %in% c("multi_group", "overall") && n_grps >= 2) {
-       p_val <- mp_compute_pvalue_multi(sub$value, sub$Group, test_method)
-     }
-     if (!is.na(p_val)) {
-       p_label <- mp_format_p_label(p_val, signif_label)
-       if (nzchar(p_label)) {
-         # For bar plots, compute y_pos from summary (mean + error) not raw values
-         if (plot_type %in% c("bar", "bar_sd")) {
-           summ_y <- sub %>% dplyr::group_by(Group) %>%
-             dplyr::summarise(
-               top = mean(value, na.rm = TRUE) + if (plot_type == "bar")
-                 sd(value, na.rm = TRUE) / sqrt(dplyr::n()) else sd(value, na.rm = TRUE),
-               .groups = "drop")
-           y_pos <- max(summ_y$top, na.rm = TRUE) * 1.08
-         } else {
-           y_pos <- max(sub$value, na.rm = TRUE) + diff(range(sub$value, na.rm = TRUE)) * 0.08
+     
+     if (signif_style == "bars" && ttype == "two_group" && n_grps >= 2) {
+       # Bracket bar style (like regular plots tab)
+       tryCatch({
+         comps <- combn(grp_levels, 2, simplify = FALSE)
+         # Map test method to stat_compare_means method
+         scm_method <- switch(test_method,
+           "t.test" = "t.test", "welch" = "t.test",
+           "wilcox.test" = "wilcox.test",
+           "paired_t" = "t.test", "wilcoxon_sr" = "wilcox.test",
+           "ks_two" = "wilcox.test", "f_test" = "t.test",
+           "t.test")
+         method_args <- if (test_method == "t.test") list(var.equal = TRUE) else list()
+         p <- p + stat_compare_means(
+           method = scm_method,
+           comparisons = comps,
+           label = signif_label,
+           step.increase = signif_step,
+           size = signif_text_size,
+           method.args = method_args
+         )
+       }, error = function(e) {
+         message("Bracket bar annotation error: ", e$message)
+       })
+     } else {
+       # Text annotation style (original)
+       p_val <- NA_real_
+       if (ttype == "two_group" && n_grps >= 2) {
+         g1 <- sub$value[sub$Group == grp_levels[1]]
+         g2 <- sub$value[sub$Group == grp_levels[2]]
+         p_val <- mp_compute_pvalue(g1, g2, test_method)
+       } else if (ttype %in% c("multi_group", "overall") && n_grps >= 2) {
+         p_val <- mp_compute_pvalue_multi(sub$value, sub$Group, test_method)
+       }
+       if (!is.na(p_val)) {
+         p_label <- mp_format_p_label(p_val, signif_label)
+         if (nzchar(p_label)) {
+           # For bar plots, compute y_pos from summary (mean + error) not raw values
+           if (plot_type %in% c("bar", "bar_sd")) {
+             summ_y <- sub %>% dplyr::group_by(Group) %>%
+               dplyr::summarise(
+                 top = mean(value, na.rm = TRUE) + if (plot_type == "bar")
+                   sd(value, na.rm = TRUE) / sqrt(dplyr::n()) else sd(value, na.rm = TRUE),
+                 .groups = "drop")
+             y_pos <- max(summ_y$top, na.rm = TRUE) * 1.08
+           } else {
+             y_pos <- max(sub$value, na.rm = TRUE) + diff(range(sub$value, na.rm = TRUE)) * 0.08
+           }
+           x_pos <- (1 + n_grps) / 2
+           p <- p + annotate("text", x = x_pos, y = y_pos, label = p_label,
+                              size = signif_text_size, fontface = "bold", color = "#333333")
          }
-         x_pos <- (1 + n_grps) / 2
-         p <- p + annotate("text", x = x_pos, y = y_pos, label = p_label,
-                            size = 4, fontface = "bold", color = "#333333")
        }
      }
    }
    
-   # Y-axis limits
+   # Y-axis limits / coord_flip
    if (custom_ylim && !is.na(ymin) && !is.na(ymax)) {
-     p <- p + coord_cartesian(ylim = c(ymin, ymax))
+     if (coord_flip) {
+       p <- p + coord_flip(ylim = c(ymin, ymax))
+     } else {
+       p <- p + coord_cartesian(ylim = c(ymin, ymax))
+     }
+   } else if (coord_flip) {
+     p <- p + coord_flip()
    }
+   
+   # Labels
+   plot_title <- if (nzchar(title_text)) title_text else param
+   xl <- if (nzchar(xlab_text)) xlab_text else ""
+   yl <- if (nzchar(ylab_text)) ylab_text else param
+   
+   # Title face
+   title_face <- "plain"
+   if (title_bold && title_italic) title_face <- "bold.italic"
+   else if (title_bold) title_face <- "bold"
+   else if (title_italic) title_face <- "italic"
+   
+   axis_title_face <- "plain"
+   if (axis_title_bold && axis_title_italic) axis_title_face <- "bold.italic"
+   else if (axis_title_bold) axis_title_face <- "bold"
+   else if (axis_title_italic) axis_title_face <- "italic"
    
    theme_fn <- switch(theme_name,
      "classic" = theme_classic, "minimal" = theme_minimal,
-     "bw" = theme_bw, "pubr" = theme_pubr, theme_classic)
+     "bw" = theme_bw, "light" = theme_light,
+     "pubr" = theme_pubr, "void" = theme_void, theme_classic)
    p <- p + theme_fn() +
-     labs(title = param, x = "", y = param) +
-     theme(plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
-           legend.position = "none",
-           axis.text = element_text(size = 11),
-           axis.title = element_text(size = 12))
+     labs(title = plot_title, x = xl, y = yl) +
+     theme(
+       plot.title = element_text(face = title_face, size = title_size, hjust = 0.5),
+       axis.text = element_text(size = axis_text_size),
+       axis.title = element_text(size = axis_title_size, face = axis_title_face),
+       legend.text = element_text(size = legend_size),
+       legend.title = element_text(size = legend_size + 1),
+       panel.background = element_rect(fill = bg_color),
+       plot.background = element_rect(fill = bg_color, color = NA)
+     )
+   
+   # Legend
+   if (!show_legend) {
+     p <- p + theme(legend.position = "none")
+   } else {
+     p <- p + theme(legend.position = "bottom")
+   }
+   
    p
  }
  
  # --- Build single combined faceted plot --------------------------------------
  mp_build_combined_plot <- function(df, params, grp_levels, plot_type, palette, alpha_val,
                                      pt_size, theme_name, show_signif, test_method,
-                                     signif_label, custom_ylim, ymin, ymax, free_y) {
+                                     signif_label, custom_ylim, ymin, ymax, free_y,
+                                     line_width = 0.8, width_adj = 0.75,
+                                     bg_color = "#ffffff",
+                                     title_text = "", xlab_text = "", ylab_text = "",
+                                     title_size = 16, axis_title_size = 14,
+                                     axis_text_size = 12, legend_size = 11,
+                                     title_bold = TRUE, title_italic = FALSE,
+                                     axis_title_bold = FALSE, axis_title_italic = FALSE,
+                                     underline_title = FALSE,
+                                     show_legend = TRUE, coord_flip = FALSE,
+                                     show_mean = FALSE,
+                                     show_errorbar = FALSE, errorbar_type = "se",
+                                     errorbar_width = 0.2,
+                                     show_jitter = FALSE, jitter_width = 0.15,
+                                     jitter_alpha = 0.5,
+                                     signif_step = 0.05, signif_text_size = 3.5,
+                                     custom_colors = NULL,
+                                     whisker_type = "default",
+                                     signif_style = "text") {
    # Validate params exist in df
    params <- params[params %in% colnames(df)]
    if (length(params) == 0) return(ggplot() + theme_void() + labs(title = "No valid parameters"))
@@ -4548,51 +5573,403 @@ server <- function(input, output, session) {
    if (nrow(long) == 0) return(ggplot() + theme_void() + labs(title = "No data"))
    
    n_grps <- length(grp_levels)
-   cols <- tryCatch(get_palette_colors(palette, max(n_grps, 3)), error = function(e) NULL)
-   if (is.null(cols)) cols <- scales::hue_pal()(n_grps)
-   cols <- cols[seq_len(n_grps)]
+   if (!is.null(custom_colors) && length(custom_colors) >= n_grps) {
+     cols <- custom_colors[seq_len(n_grps)]
+   } else {
+     cols <- tryCatch(get_palette_colors(palette, max(n_grps, 3)), error = function(e) NULL)
+     if (is.null(cols)) cols <- scales::hue_pal()(n_grps)
+     cols <- cols[seq_len(n_grps)]
+   }
+   
+   lw <- line_width
+   w <- width_adj
+   bx_coef <- if (whisker_type == "minmax") Inf else 1.5
+   use_stat_whisker <- whisker_type %in% c("percentile", "sd")
    
    p <- ggplot(long, aes(x = Group, y = value, fill = Group)) +
      scale_fill_manual(values = cols)
    
    if (plot_type == "box") {
-     p <- p + geom_boxplot(alpha = alpha_val, width = 0.6, outlier.shape = 21)
+     if (use_stat_whisker) {
+       p <- p + stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+                             alpha = alpha_val, width = w, linewidth = lw)
+     } else {
+       p <- p + geom_boxplot(alpha = alpha_val, width = w, outlier.shape = 21,
+                             linewidth = lw, outlier.size = pt_size, coef = bx_coef)
+     }
    } else if (plot_type == "violin") {
-     p <- p + geom_violin(alpha = alpha_val, trim = FALSE)
+     p <- p + geom_violin(alpha = alpha_val, width = w, trim = FALSE, linewidth = lw)
    } else if (plot_type == "box_jitter") {
-     p <- p + geom_boxplot(alpha = alpha_val, width = 0.6, outlier.shape = NA) +
-       geom_jitter(width = 0.15, size = pt_size, alpha = 0.7, shape = 21,
-                   aes(fill = Group), color = "black", stroke = 0.3)
+     if (use_stat_whisker) {
+       p <- p + stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+                             alpha = alpha_val, width = w, linewidth = lw) +
+         geom_jitter(width = 0.15, size = pt_size, alpha = 0.7, shape = 21,
+                     aes(fill = Group), color = "black", stroke = 0.3)
+     } else {
+       p <- p + geom_boxplot(alpha = alpha_val, width = w, outlier.shape = NA, linewidth = lw, coef = bx_coef) +
+         geom_jitter(width = 0.15, size = pt_size, alpha = 0.7, shape = 21,
+                     aes(fill = Group), color = "black", stroke = 0.3)
+     }
    } else if (plot_type == "violin_jitter") {
-     p <- p + geom_violin(alpha = alpha_val, trim = FALSE) +
+     p <- p + geom_violin(alpha = alpha_val, width = w, trim = FALSE, linewidth = lw) +
        geom_jitter(width = 0.15, size = pt_size, alpha = 0.7, shape = 21,
                    aes(fill = Group), color = "black", stroke = 0.3)
    } else if (plot_type == "violin_box") {
-     p <- p + geom_violin(alpha = alpha_val, trim = FALSE) +
-       geom_boxplot(width = 0.15, alpha = 0.9, outlier.shape = NA)
+     if (use_stat_whisker) {
+       p <- p + geom_violin(alpha = alpha_val, width = w, trim = FALSE, linewidth = lw) +
+         stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+                      width = w * 0.2, alpha = 0.9, linewidth = lw)
+     } else {
+       p <- p + geom_violin(alpha = alpha_val, width = w, trim = FALSE, linewidth = lw) +
+         geom_boxplot(width = w * 0.2, alpha = 0.9, outlier.shape = NA, linewidth = lw, coef = bx_coef)
+     }
    } else if (plot_type == "bar") {
-     summ <- long %>% group_by(Parameter, Group) %>%
-       summarise(mean = mean(value), se = sd(value)/sqrt(dplyr::n()), .groups = "drop")
-     p <- ggplot(summ, aes(x = Group, y = mean, fill = Group)) +
-       geom_col(alpha = alpha_val, width = 0.6, color = "black", linewidth = 0.3) +
-       geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.2) +
-       scale_fill_manual(values = cols)
+     p <- p +
+       stat_summary(fun = mean, geom = "col", alpha = alpha_val, width = w,
+                    color = "black", linewidth = lw) +
+       stat_summary(fun.data = mean_se, geom = "errorbar",
+                    width = errorbar_width, linewidth = lw)
    } else if (plot_type == "bar_sd") {
-     summ <- long %>% group_by(Parameter, Group) %>%
-       summarise(mean = mean(value), sd = sd(value), .groups = "drop")
-     p <- ggplot(summ, aes(x = Group, y = mean, fill = Group)) +
-       geom_col(alpha = alpha_val, width = 0.6, color = "black", linewidth = 0.3) +
-       geom_errorbar(aes(ymin = mean - sd, ymax = mean + sd), width = 0.2) +
-       scale_fill_manual(values = cols)
+     sd_err_fun_bar <- function(x, ...) {
+       m <- mean(x, na.rm = TRUE); s <- sd(x, na.rm = TRUE)
+       data.frame(y = m, ymin = m - s, ymax = m + s)
+     }
+     p <- p +
+       stat_summary(fun = mean, geom = "col", alpha = alpha_val, width = w,
+                    color = "black", linewidth = lw) +
+       stat_summary(fun.data = sd_err_fun_bar, geom = "errorbar",
+                    width = errorbar_width, linewidth = lw)
    } else if (plot_type == "dot") {
      p <- p + geom_jitter(width = 0.2, size = pt_size, shape = 21,
                           color = "black", stroke = 0.3, alpha = 0.8)
    } else if (plot_type == "swarm") {
      p <- p + ggbeeswarm::geom_beeswarm(size = pt_size, shape = 21,
                                          color = "black", stroke = 0.3, alpha = 0.8)
+   } else if (plot_type == "mean_dot") {
+     sd_err_fun <- function(x, ...) {
+       m <- mean(x, na.rm = TRUE); s <- sd(x, na.rm = TRUE)
+       data.frame(y = m, ymin = m - s, ymax = m + s)
+     }
+     p <- p +
+       stat_summary(fun = mean, geom = "point", size = pt_size * 2) +
+       stat_summary(fun.data = sd_err_fun, geom = "errorbar",
+         width = errorbar_width, linewidth = lw)
+   }
+   
+   # Overlays: Mean point
+   if (show_mean && !(plot_type %in% c("bar", "bar_sd", "mean_dot"))) {
+     p <- p + stat_summary(fun = mean, geom = "point",
+       shape = 18, size = pt_size * 1.5, color = "#e74c3c")
+   }
+   
+   # Overlays: Error bars
+   if (show_errorbar && !(plot_type %in% c("bar", "bar_sd", "mean_dot"))) {
+     eb_fun <- switch(errorbar_type,
+       "se" = mean_se,
+       "sd" = function(x, ...) { m <- mean(x); s <- sd(x); data.frame(y = m, ymin = m - s, ymax = m + s) },
+       "ci" = mean_cl_normal,
+       "iqr" = median_hilow
+     )
+     p <- p + stat_summary(fun.data = eb_fun, geom = "errorbar",
+       width = errorbar_width, linewidth = lw)
+   }
+   
+   # Overlays: Jitter
+   if (show_jitter && !(plot_type %in% c("dot", "swarm", "box_jitter", "violin_jitter"))) {
+     p <- p + geom_jitter(width = jitter_width,
+       alpha = jitter_alpha, size = pt_size * 0.7)
    }
    
    # Significance (compute per-parameter, annotate consistently with stats table)
+   if (show_signif && test_method != "none" && !grepl("^header_", test_method) && n_grps >= 2) {
+     ttype <- mp_test_type(test_method)
+     
+     if (signif_style == "bars" && ttype == "two_group" && n_grps >= 2) {
+       # Bracket bar style per facet
+       tryCatch({
+         comps <- combn(grp_levels, 2, simplify = FALSE)
+         scm_method <- switch(test_method,
+           "t.test" = "t.test", "welch" = "t.test",
+           "wilcox.test" = "wilcox.test",
+           "paired_t" = "t.test", "wilcoxon_sr" = "wilcox.test",
+           "ks_two" = "wilcox.test", "f_test" = "t.test",
+           "t.test")
+         method_args <- if (test_method == "t.test") list(var.equal = TRUE) else list()
+         p <- p + stat_compare_means(
+           method = scm_method,
+           comparisons = comps,
+           label = signif_label,
+           step.increase = signif_step,
+           size = signif_text_size,
+           method.args = method_args
+         )
+       }, error = function(e) {
+         message("Bracket bar annotation error: ", e$message)
+       })
+     } else {
+       # Text annotation style (original)
+       annot_rows <- lapply(params, function(param) {
+         sub_p <- long[long$Parameter == param, ]
+         p_val <- NA_real_
+         if (ttype == "two_group" && n_grps >= 2) {
+           g1 <- sub_p$value[sub_p$Group == grp_levels[1]]
+           g2 <- sub_p$value[sub_p$Group == grp_levels[2]]
+           p_val <- mp_compute_pvalue(g1, g2, test_method)
+         } else if (ttype %in% c("multi_group", "overall")) {
+           p_val <- mp_compute_pvalue_multi(sub_p$value, sub_p$Group, test_method)
+         }
+         p_label <- if (!is.na(p_val)) mp_format_p_label(p_val, signif_label) else ""
+         # For bar plots, use summary (mean + error) for y_pos
+         if (plot_type %in% c("bar", "bar_sd")) {
+           summ_y <- sub_p %>% dplyr::group_by(Group) %>%
+             dplyr::summarise(
+               top = mean(value, na.rm = TRUE) + if (plot_type == "bar")
+                 sd(value, na.rm = TRUE) / sqrt(dplyr::n()) else sd(value, na.rm = TRUE),
+               .groups = "drop")
+           y_pos <- max(summ_y$top, na.rm = TRUE) * 1.08
+         } else {
+           y_pos <- max(sub_p$value, na.rm = TRUE) +
+             diff(range(sub_p$value, na.rm = TRUE)) * 0.08
+         }
+         x_pos <- (1 + n_grps) / 2
+         data.frame(Parameter = param, x = x_pos, y = y_pos, label = p_label,
+                    stringsAsFactors = FALSE)
+       })
+       annot_df <- do.call(rbind, annot_rows)
+       annot_df$Parameter <- factor(annot_df$Parameter, levels = params)
+       annot_df <- annot_df[nzchar(annot_df$label), , drop = FALSE]
+       if (nrow(annot_df) > 0) {
+         p <- p + geom_text(data = annot_df, aes(x = x, y = y, label = label),
+                            inherit.aes = FALSE, size = signif_text_size, fontface = "bold",
+                            color = "#333333")
+       }
+     }
+   }
+   # Facet
+   scales_arg <- if (free_y) "free_y" else "fixed"
+   p <- p + facet_wrap(~ Parameter, scales = scales_arg)
+   
+   # Y-axis limits / coord_flip (only if not free)
+   if (custom_ylim && !is.na(ymin) && !is.na(ymax) && !free_y) {
+     if (coord_flip) {
+       p <- p + coord_flip(ylim = c(ymin, ymax))
+     } else {
+       p <- p + coord_cartesian(ylim = c(ymin, ymax))
+     }
+   } else if (coord_flip) {
+     p <- p + coord_flip()
+   }
+   
+   # Labels
+   plot_title <- if (nzchar(title_text)) title_text else NULL
+   xl <- if (nzchar(xlab_text)) xlab_text else ""
+   yl <- if (nzchar(ylab_text)) ylab_text else "Value"
+   
+   # Title face
+   title_face <- "plain"
+   if (title_bold && title_italic) title_face <- "bold.italic"
+   else if (title_bold) title_face <- "bold"
+   else if (title_italic) title_face <- "italic"
+   
+   axis_title_face <- "plain"
+   if (axis_title_bold && axis_title_italic) axis_title_face <- "bold.italic"
+   else if (axis_title_bold) axis_title_face <- "bold"
+   else if (axis_title_italic) axis_title_face <- "italic"
+   
+   theme_fn <- switch(theme_name,
+     "classic" = theme_classic, "minimal" = theme_minimal,
+     "bw" = theme_bw, "light" = theme_light,
+     "pubr" = theme_pubr, "void" = theme_void, theme_classic)
+   p <- p + theme_fn() +
+     labs(title = plot_title, x = xl, y = yl) +
+     theme(
+       plot.title = element_text(face = title_face, size = title_size, hjust = 0.5),
+       strip.text = element_text(face = "bold", size = axis_text_size + 1),
+       axis.text = element_text(size = axis_text_size),
+       axis.title = element_text(size = axis_title_size, face = axis_title_face),
+       legend.text = element_text(size = legend_size),
+       legend.title = element_blank(),
+       panel.background = element_rect(fill = bg_color),
+       plot.background = element_rect(fill = bg_color, color = NA)
+     )
+   
+   # Legend
+   if (show_legend) {
+     p <- p + theme(legend.position = "bottom")
+   } else {
+     p <- p + theme(legend.position = "none")
+   }
+   
+   p
+ }
+ 
+ # --- Build grouped single plot (all params on x-axis, groups dodged) ---------
+ mp_build_grouped_plot <- function(df, params, grp_levels, plot_type, palette, alpha_val,
+                                    pt_size, theme_name, show_signif, test_method,
+                                    signif_label, custom_ylim, ymin, ymax, free_y,
+                                    line_width = 0.8, width_adj = 0.75,
+                                    bg_color = "#ffffff",
+                                    title_text = "", xlab_text = "", ylab_text = "",
+                                    title_size = 16, axis_title_size = 14,
+                                    axis_text_size = 12, legend_size = 11,
+                                    title_bold = TRUE, title_italic = FALSE,
+                                    axis_title_bold = FALSE, axis_title_italic = FALSE,
+                                    underline_title = FALSE,
+                                    show_legend = TRUE, coord_flip = FALSE,
+                                    show_mean = FALSE,
+                                    show_errorbar = FALSE, errorbar_type = "se",
+                                    errorbar_width = 0.2,
+                                    show_jitter = FALSE, jitter_width = 0.15,
+                                    jitter_alpha = 0.5,
+                                    signif_step = 0.05, signif_text_size = 3.5,
+                                    custom_colors = NULL,
+                                    whisker_type = "default",
+                                    signif_style = "text") {
+   # Validate params
+   params <- params[params %in% colnames(df)]
+   if (length(params) == 0) return(ggplot() + theme_void() + labs(title = "No valid parameters"))
+   
+   # Melt to long format
+   sub_df <- df[, c("Sample", "Group", params), drop = FALSE]
+   for (pp in params) sub_df[[pp]] <- suppressWarnings(as.numeric(sub_df[[pp]]))
+   long <- tidyr::pivot_longer(sub_df, cols = all_of(params),
+                                names_to = "Parameter", values_to = "value")
+   long$Group <- factor(long$Group, levels = grp_levels)
+   long$Parameter <- factor(long$Parameter, levels = params)
+   long <- long[!is.na(long$value), ]
+   if (nrow(long) == 0) return(ggplot() + theme_void() + labs(title = "No data"))
+   
+   n_grps <- length(grp_levels)
+   if (!is.null(custom_colors) && length(custom_colors) >= n_grps) {
+     cols <- custom_colors[seq_len(n_grps)]
+   } else {
+     cols <- tryCatch(get_palette_colors(palette, max(n_grps, 3)), error = function(e) NULL)
+     if (is.null(cols)) cols <- scales::hue_pal()(n_grps)
+     cols <- cols[seq_len(n_grps)]
+   }
+   
+   lw <- line_width
+   w <- width_adj
+   bx_coef <- if (whisker_type == "minmax") Inf else 1.5
+   use_stat_whisker <- whisker_type %in% c("percentile", "sd")
+   dodge_w <- w
+   
+   # x = Parameter, fill = Group, dodged
+   p <- ggplot(long, aes(x = Parameter, y = value, fill = Group)) +
+     scale_fill_manual(values = cols)
+   
+   if (plot_type == "box") {
+     if (use_stat_whisker) {
+       p <- p + stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+                             alpha = alpha_val, width = w, linewidth = lw,
+                             position = position_dodge(width = dodge_w))
+     } else {
+       p <- p + geom_boxplot(alpha = alpha_val, width = w, outlier.shape = 21,
+                             linewidth = lw, outlier.size = pt_size, coef = bx_coef,
+                             position = position_dodge(width = dodge_w))
+     }
+   } else if (plot_type == "violin") {
+     p <- p + geom_violin(alpha = alpha_val, width = w, trim = FALSE, linewidth = lw,
+                          position = position_dodge(width = dodge_w))
+   } else if (plot_type == "box_jitter") {
+     if (use_stat_whisker) {
+       p <- p + stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+                             alpha = alpha_val, width = w, linewidth = lw,
+                             position = position_dodge(width = dodge_w)) +
+         geom_point(size = pt_size, alpha = 0.7, shape = 21, color = "black", stroke = 0.3,
+                    position = position_jitterdodge(jitter.width = 0.15, dodge.width = dodge_w))
+     } else {
+       p <- p + geom_boxplot(alpha = alpha_val, width = w, outlier.shape = NA,
+                             linewidth = lw, coef = bx_coef,
+                             position = position_dodge(width = dodge_w)) +
+         geom_point(size = pt_size, alpha = 0.7, shape = 21, color = "black", stroke = 0.3,
+                    position = position_jitterdodge(jitter.width = 0.15, dodge.width = dodge_w))
+     }
+   } else if (plot_type == "violin_jitter") {
+     p <- p + geom_violin(alpha = alpha_val, width = w, trim = FALSE, linewidth = lw,
+                          position = position_dodge(width = dodge_w)) +
+       geom_point(size = pt_size, alpha = 0.7, shape = 21, color = "black", stroke = 0.3,
+                  position = position_jitterdodge(jitter.width = 0.15, dodge.width = dodge_w))
+   } else if (plot_type == "violin_box") {
+     if (use_stat_whisker) {
+       p <- p + geom_violin(alpha = alpha_val, width = w, trim = FALSE, linewidth = lw,
+                            position = position_dodge(width = dodge_w)) +
+         stat_summary(fun.data = whisker_stat_fun(whisker_type), geom = "boxplot",
+                      width = w * 0.2, alpha = 0.9, linewidth = lw,
+                      position = position_dodge(width = dodge_w))
+     } else {
+       p <- p + geom_violin(alpha = alpha_val, width = w, trim = FALSE, linewidth = lw,
+                            position = position_dodge(width = dodge_w)) +
+         geom_boxplot(width = w * 0.2, alpha = 0.9, outlier.shape = NA, linewidth = lw,
+                      coef = bx_coef, position = position_dodge(width = dodge_w))
+     }
+   } else if (plot_type == "bar") {
+     p <- p +
+       stat_summary(fun = mean, geom = "col", alpha = alpha_val, width = w,
+                    color = "black", linewidth = lw,
+                    position = position_dodge(width = dodge_w)) +
+       stat_summary(fun.data = mean_se, geom = "errorbar",
+                    width = errorbar_width, linewidth = lw,
+                    position = position_dodge(width = dodge_w))
+   } else if (plot_type == "bar_sd") {
+     sd_err_fun_bar <- function(x, ...) {
+       m <- mean(x, na.rm = TRUE); s <- sd(x, na.rm = TRUE)
+       data.frame(y = m, ymin = m - s, ymax = m + s)
+     }
+     p <- p +
+       stat_summary(fun = mean, geom = "col", alpha = alpha_val, width = w,
+                    color = "black", linewidth = lw,
+                    position = position_dodge(width = dodge_w)) +
+       stat_summary(fun.data = sd_err_fun_bar, geom = "errorbar",
+                    width = errorbar_width, linewidth = lw,
+                    position = position_dodge(width = dodge_w))
+   } else if (plot_type == "dot") {
+     p <- p + geom_point(size = pt_size, shape = 21, color = "black", stroke = 0.3, alpha = 0.8,
+                         position = position_jitterdodge(jitter.width = 0.2, dodge.width = dodge_w))
+   } else if (plot_type == "swarm") {
+     p <- p + ggbeeswarm::geom_beeswarm(size = pt_size, shape = 21,
+                                         color = "black", stroke = 0.3, alpha = 0.8,
+                                         dodge.width = dodge_w)
+   } else if (plot_type == "mean_dot") {
+     sd_err_fun <- function(x, ...) {
+       m <- mean(x, na.rm = TRUE); s <- sd(x, na.rm = TRUE)
+       data.frame(y = m, ymin = m - s, ymax = m + s)
+     }
+     p <- p +
+       stat_summary(fun = mean, geom = "point", size = pt_size * 2,
+                    position = position_dodge(width = dodge_w)) +
+       stat_summary(fun.data = sd_err_fun, geom = "errorbar",
+                    width = errorbar_width, linewidth = lw,
+                    position = position_dodge(width = dodge_w))
+   }
+   
+   # Overlays: Mean point
+   if (show_mean && !(plot_type %in% c("bar", "bar_sd", "mean_dot"))) {
+     p <- p + stat_summary(fun = mean, geom = "point",
+       shape = 18, size = pt_size * 1.5, color = "#e74c3c",
+       position = position_dodge(width = dodge_w))
+   }
+   
+   # Overlays: Error bars
+   if (show_errorbar && !(plot_type %in% c("bar", "bar_sd", "mean_dot"))) {
+     eb_fun <- switch(errorbar_type,
+       "se" = mean_se,
+       "sd" = function(x, ...) { m <- mean(x); s <- sd(x); data.frame(y = m, ymin = m - s, ymax = m + s) },
+       "ci" = mean_cl_normal,
+       "iqr" = median_hilow
+     )
+     p <- p + stat_summary(fun.data = eb_fun, geom = "errorbar",
+       width = errorbar_width, linewidth = lw,
+       position = position_dodge(width = dodge_w))
+   }
+   
+   # Overlays: Jitter
+   if (show_jitter && !(plot_type %in% c("dot", "swarm", "box_jitter", "violin_jitter"))) {
+     p <- p + geom_point(alpha = jitter_alpha, size = pt_size * 0.7,
+       position = position_jitterdodge(jitter.width = jitter_width, dodge.width = dodge_w))
+   }
+   
+   # Significance: annotate per parameter
    if (show_signif && test_method != "none" && !grepl("^header_", test_method) && n_grps >= 2) {
      ttype <- mp_test_type(test_method)
      annot_rows <- lapply(params, function(param) {
@@ -4606,7 +5983,6 @@ server <- function(input, output, session) {
          p_val <- mp_compute_pvalue_multi(sub_p$value, sub_p$Group, test_method)
        }
        p_label <- if (!is.na(p_val)) mp_format_p_label(p_val, signif_label) else ""
-       # For bar plots, use summary (mean + error) for y_pos
        if (plot_type %in% c("bar", "bar_sd")) {
          summ_y <- sub_p %>% dplyr::group_by(Group) %>%
            dplyr::summarise(
@@ -4618,40 +5994,69 @@ server <- function(input, output, session) {
          y_pos <- max(sub_p$value, na.rm = TRUE) +
            diff(range(sub_p$value, na.rm = TRUE)) * 0.08
        }
-       x_pos <- (1 + n_grps) / 2
-       data.frame(Parameter = param, x = x_pos, y = y_pos, label = p_label,
+       data.frame(Parameter = param, y = y_pos, label = p_label,
                   stringsAsFactors = FALSE)
      })
      annot_df <- do.call(rbind, annot_rows)
      annot_df$Parameter <- factor(annot_df$Parameter, levels = params)
      annot_df <- annot_df[nzchar(annot_df$label), , drop = FALSE]
      if (nrow(annot_df) > 0) {
-       p <- p + geom_text(data = annot_df, aes(x = x, y = y, label = label),
-                          inherit.aes = FALSE, size = 3.5, fontface = "bold",
+       p <- p + geom_text(data = annot_df, aes(x = Parameter, y = y, label = label),
+                          inherit.aes = FALSE, size = signif_text_size, fontface = "bold",
                           color = "#333333")
      }
    }
    
-   # Facet
-   scales_arg <- if (free_y) "free_y" else "fixed"
-   p <- p + facet_wrap(~ Parameter, scales = scales_arg)
-   
-   # Y-axis limits (only if not free)
-   if (custom_ylim && !is.na(ymin) && !is.na(ymax) && !free_y) {
-     p <- p + coord_cartesian(ylim = c(ymin, ymax))
+   # Y-axis limits / coord_flip
+   if (custom_ylim && !is.na(ymin) && !is.na(ymax)) {
+     if (coord_flip) {
+       p <- p + coord_flip(ylim = c(ymin, ymax))
+     } else {
+       p <- p + coord_cartesian(ylim = c(ymin, ymax))
+     }
+   } else if (coord_flip) {
+     p <- p + coord_flip()
    }
+   
+   # Labels
+   plot_title <- if (nzchar(title_text)) title_text else NULL
+   xl <- if (nzchar(xlab_text)) xlab_text else ""
+   yl <- if (nzchar(ylab_text)) ylab_text else "Value"
+   
+   # Title face
+   title_face <- "plain"
+   if (title_bold && title_italic) title_face <- "bold.italic"
+   else if (title_bold) title_face <- "bold"
+   else if (title_italic) title_face <- "italic"
+   
+   axis_title_face <- "plain"
+   if (axis_title_bold && axis_title_italic) axis_title_face <- "bold.italic"
+   else if (axis_title_bold) axis_title_face <- "bold"
+   else if (axis_title_italic) axis_title_face <- "italic"
    
    theme_fn <- switch(theme_name,
      "classic" = theme_classic, "minimal" = theme_minimal,
-     "bw" = theme_bw, "pubr" = theme_pubr, theme_classic)
+     "bw" = theme_bw, "light" = theme_light,
+     "pubr" = theme_pubr, "void" = theme_void, theme_classic)
    p <- p + theme_fn() +
-     labs(x = "", y = "Value") +
-     theme(plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
-           strip.text = element_text(face = "bold", size = 12),
-           axis.text = element_text(size = 11),
-           axis.title = element_text(size = 12),
-           legend.position = "bottom",
-           legend.title = element_blank())
+     labs(title = plot_title, x = xl, y = yl) +
+     theme(
+       plot.title = element_text(face = title_face, size = title_size, hjust = 0.5),
+       axis.text = element_text(size = axis_text_size),
+       axis.title = element_text(size = axis_title_size, face = axis_title_face),
+       legend.text = element_text(size = legend_size),
+       legend.title = element_blank(),
+       panel.background = element_rect(fill = bg_color),
+       plot.background = element_rect(fill = bg_color, color = NA)
+     )
+   
+   # Legend
+   if (show_legend) {
+     p <- p + theme(legend.position = "bottom")
+   } else {
+     p <- p + theme(legend.position = "none")
+   }
+   
    p
  }
  
@@ -4668,6 +6073,16 @@ server <- function(input, output, session) {
    ymin_val <- if (isTRUE(input$mp_custom_ylim)) input$mp_ymin else NA
    ymax_val <- if (isTRUE(input$mp_custom_ylim)) input$mp_ymax else NA
    
+   # Gather custom colors if palette is "custom"
+   custom_cols <- NULL
+   if (!is.null(input$mp_palette) && input$mp_palette == "custom") {
+     n_grps <- length(grp_levels)
+     custom_cols <- sapply(seq_len(n_grps), function(i) {
+       val <- input[[paste0("mp_custom_col_", i)]]
+       if (is.null(val)) "#3c8dbc" else val
+     })
+   }
+   
    plots <- lapply(params, function(param) {
      mp_build_one_plot(
        df = df, param = param, grp_levels = grp_levels,
@@ -4675,7 +6090,36 @@ server <- function(input, output, session) {
        alpha_val = input$mp_alpha, pt_size = input$mp_point_size,
        theme_name = input$mp_theme, show_signif = isTRUE(input$mp_show_signif),
        test_method = input$mp_test_method, signif_label = input$mp_signif_label,
-       custom_ylim = isTRUE(input$mp_custom_ylim), ymin = ymin_val, ymax = ymax_val
+       custom_ylim = isTRUE(input$mp_custom_ylim), ymin = ymin_val, ymax = ymax_val,
+       line_width = input$mp_line_width,
+       width_adj = input$mp_width_adj,
+       bg_color = input$mp_bg_color,
+       title_text = "",
+       xlab_text = input$mp_xlab,
+       ylab_text = input$mp_ylab,
+       title_size = input$mp_title_size,
+       axis_title_size = input$mp_axis_title_size,
+       axis_text_size = input$mp_axis_text_size,
+       legend_size = input$mp_legend_size,
+       title_bold = isTRUE(input$mp_title_bold),
+       title_italic = isTRUE(input$mp_title_italic),
+       axis_title_bold = isTRUE(input$mp_axis_title_bold),
+       axis_title_italic = isTRUE(input$mp_axis_title_italic),
+       underline_title = isTRUE(input$mp_underline_title),
+       show_legend = isTRUE(input$mp_show_legend),
+       coord_flip = isTRUE(input$mp_coord_flip),
+       show_mean = isTRUE(input$mp_show_mean),
+       show_errorbar = isTRUE(input$mp_show_errorbar),
+       errorbar_type = if (!is.null(input$mp_errorbar_type)) input$mp_errorbar_type else "se",
+       errorbar_width = if (!is.null(input$mp_errorbar_width)) input$mp_errorbar_width else 0.2,
+       show_jitter = isTRUE(input$mp_show_jitter),
+       jitter_width = if (!is.null(input$mp_jitter_width)) input$mp_jitter_width else 0.15,
+       jitter_alpha = if (!is.null(input$mp_jitter_alpha)) input$mp_jitter_alpha else 0.5,
+       signif_step = if (!is.null(input$mp_signif_step)) input$mp_signif_step else 0.05,
+       signif_text_size = if (!is.null(input$mp_signif_text_size)) input$mp_signif_text_size else 3.5,
+       custom_colors = custom_cols,
+       whisker_type = if (!is.null(input$mp_whisker_type)) input$mp_whisker_type else "default",
+       signif_style = if (!is.null(input$mp_signif_style)) input$mp_signif_style else "text"
      )
    })
    names(plots) <- params
@@ -4694,6 +6138,16 @@ server <- function(input, output, session) {
    ymin_val <- if (isTRUE(input$mp_custom_ylim)) input$mp_ymin else NA
    ymax_val <- if (isTRUE(input$mp_custom_ylim)) input$mp_ymax else NA
    
+   # Gather custom colors if palette is "custom"
+   custom_cols <- NULL
+   if (!is.null(input$mp_palette) && input$mp_palette == "custom") {
+     n_grps <- length(grp_levels)
+     custom_cols <- sapply(seq_len(n_grps), function(i) {
+       val <- input[[paste0("mp_custom_col_", i)]]
+       if (is.null(val)) "#3c8dbc" else val
+     })
+   }
+   
    mp_build_combined_plot(
      df = df, params = params, grp_levels = grp_levels,
      plot_type = input$mp_plot_type, palette = input$mp_palette,
@@ -4701,7 +6155,97 @@ server <- function(input, output, session) {
      theme_name = input$mp_theme, show_signif = isTRUE(input$mp_show_signif),
      test_method = input$mp_test_method, signif_label = input$mp_signif_label,
      custom_ylim = isTRUE(input$mp_custom_ylim), ymin = ymin_val, ymax = ymax_val,
-     free_y = isTRUE(input$mp_free_y)
+     free_y = isTRUE(input$mp_free_y),
+     line_width = input$mp_line_width,
+     width_adj = input$mp_width_adj,
+     bg_color = input$mp_bg_color,
+     title_text = input$mp_title,
+     xlab_text = input$mp_xlab,
+     ylab_text = input$mp_ylab,
+     title_size = input$mp_title_size,
+     axis_title_size = input$mp_axis_title_size,
+     axis_text_size = input$mp_axis_text_size,
+     legend_size = input$mp_legend_size,
+     title_bold = isTRUE(input$mp_title_bold),
+     title_italic = isTRUE(input$mp_title_italic),
+     axis_title_bold = isTRUE(input$mp_axis_title_bold),
+     axis_title_italic = isTRUE(input$mp_axis_title_italic),
+     underline_title = isTRUE(input$mp_underline_title),
+     show_legend = isTRUE(input$mp_show_legend),
+     coord_flip = isTRUE(input$mp_coord_flip),
+     show_mean = isTRUE(input$mp_show_mean),
+     show_errorbar = isTRUE(input$mp_show_errorbar),
+     errorbar_type = if (!is.null(input$mp_errorbar_type)) input$mp_errorbar_type else "se",
+     errorbar_width = if (!is.null(input$mp_errorbar_width)) input$mp_errorbar_width else 0.2,
+     show_jitter = isTRUE(input$mp_show_jitter),
+     jitter_width = if (!is.null(input$mp_jitter_width)) input$mp_jitter_width else 0.15,
+     jitter_alpha = if (!is.null(input$mp_jitter_alpha)) input$mp_jitter_alpha else 0.5,
+     signif_step = if (!is.null(input$mp_signif_step)) input$mp_signif_step else 0.05,
+     signif_text_size = if (!is.null(input$mp_signif_text_size)) input$mp_signif_text_size else 3.5,
+     custom_colors = custom_cols,
+     whisker_type = if (!is.null(input$mp_whisker_type)) input$mp_whisker_type else "default",
+     signif_style = if (!is.null(input$mp_signif_style)) input$mp_signif_style else "text"
+   )
+ })
+ 
+ # --- Reactive: grouped single plot (params on x-axis, groups dodged) --------
+ mp_grouped_plot <- reactive({
+   df <- mp_data()
+   params <- input$mp_sel_params
+   grp_levels <- mp_grp_levels()
+   if (is.null(df) || is.null(params) || length(params) == 0 || is.null(grp_levels)) return(NULL)
+   params <- params[params %in% colnames(df)]
+   if (length(params) == 0) return(NULL)
+   
+   ymin_val <- if (isTRUE(input$mp_custom_ylim)) input$mp_ymin else NA
+   ymax_val <- if (isTRUE(input$mp_custom_ylim)) input$mp_ymax else NA
+   
+   custom_cols <- NULL
+   if (!is.null(input$mp_palette) && input$mp_palette == "custom") {
+     n_grps <- length(grp_levels)
+     custom_cols <- sapply(seq_len(n_grps), function(i) {
+       val <- input[[paste0("mp_custom_col_", i)]]
+       if (is.null(val)) "#3c8dbc" else val
+     })
+   }
+   
+   mp_build_grouped_plot(
+     df = df, params = params, grp_levels = grp_levels,
+     plot_type = input$mp_plot_type, palette = input$mp_palette,
+     alpha_val = input$mp_alpha, pt_size = input$mp_point_size,
+     theme_name = input$mp_theme, show_signif = isTRUE(input$mp_show_signif),
+     test_method = input$mp_test_method, signif_label = input$mp_signif_label,
+     custom_ylim = isTRUE(input$mp_custom_ylim), ymin = ymin_val, ymax = ymax_val,
+     free_y = isTRUE(input$mp_free_y),
+     line_width = input$mp_line_width,
+     width_adj = input$mp_width_adj,
+     bg_color = input$mp_bg_color,
+     title_text = input$mp_title,
+     xlab_text = input$mp_xlab,
+     ylab_text = input$mp_ylab,
+     title_size = input$mp_title_size,
+     axis_title_size = input$mp_axis_title_size,
+     axis_text_size = input$mp_axis_text_size,
+     legend_size = input$mp_legend_size,
+     title_bold = isTRUE(input$mp_title_bold),
+     title_italic = isTRUE(input$mp_title_italic),
+     axis_title_bold = isTRUE(input$mp_axis_title_bold),
+     axis_title_italic = isTRUE(input$mp_axis_title_italic),
+     underline_title = isTRUE(input$mp_underline_title),
+     show_legend = isTRUE(input$mp_show_legend),
+     coord_flip = isTRUE(input$mp_coord_flip),
+     show_mean = isTRUE(input$mp_show_mean),
+     show_errorbar = isTRUE(input$mp_show_errorbar),
+     errorbar_type = if (!is.null(input$mp_errorbar_type)) input$mp_errorbar_type else "se",
+     errorbar_width = if (!is.null(input$mp_errorbar_width)) input$mp_errorbar_width else 0.2,
+     show_jitter = isTRUE(input$mp_show_jitter),
+     jitter_width = if (!is.null(input$mp_jitter_width)) input$mp_jitter_width else 0.15,
+     jitter_alpha = if (!is.null(input$mp_jitter_alpha)) input$mp_jitter_alpha else 0.5,
+     signif_step = if (!is.null(input$mp_signif_step)) input$mp_signif_step else 0.05,
+     signif_text_size = if (!is.null(input$mp_signif_text_size)) input$mp_signif_text_size else 3.5,
+     custom_colors = custom_cols,
+     whisker_type = if (!is.null(input$mp_whisker_type)) input$mp_whisker_type else "default",
+     signif_style = if (!is.null(input$mp_signif_style)) input$mp_signif_style else "text"
    )
  })
  
@@ -4722,6 +6266,11 @@ server <- function(input, output, session) {
      n <- length(params)
      h <- max(380, 280 * ceiling(n / 3))
      tagList(plotOutput("mp_combined_plot_out", height = paste0(h, "px")))
+   } else if (view == "grouped") {
+     # Grouped single plot: all parameters on x-axis, groups dodged
+     n <- length(params)
+     h <- max(450, 100 * n + 200)
+     tagList(plotOutput("mp_grouped_plot_out", height = paste0(h, "px")))
    } else {
      # Separate individual plots
      n <- length(params)
@@ -4754,6 +6303,13 @@ server <- function(input, output, session) {
  # Render combined plot
  output$mp_combined_plot_out <- renderPlot({
    p <- mp_single_plot()
+   req(p)
+   p
+ }, res = 96)
+ 
+ # Render grouped plot
+ output$mp_grouped_plot_out <- renderPlot({
+   p <- mp_grouped_plot()
    req(p)
    p
  }, res = 96)
@@ -5028,6 +6584,8 @@ server <- function(input, output, session) {
  mp_download_plot <- reactive({
    if (isTRUE(input$mp_view_mode == "combined")) {
      mp_single_plot()
+   } else if (isTRUE(input$mp_view_mode == "grouped")) {
+     mp_grouped_plot()
    } else {
      plots <- mp_plot_list()
      req(plots)
@@ -5043,7 +6601,11 @@ server <- function(input, output, session) {
      req(p)
      n <- length(input$mp_sel_params)
      nrows <- ceiling(n / 3)
-     h <- input$mp_dl_height * max(nrows, 1)
+     h <- if (isTRUE(input$mp_view_mode == "grouped")) {
+       input$mp_dl_height
+     } else {
+       input$mp_dl_height * max(nrows, 1)
+     }
      ggplot2::ggsave(file, plot = p, width = input$mp_dl_width, height = h,
        units = "cm", dpi = input$mp_dl_dpi, device = "png")
    }
@@ -5056,7 +6618,11 @@ server <- function(input, output, session) {
      req(p)
      n <- length(input$mp_sel_params)
      nrows <- ceiling(n / 3)
-     h <- input$mp_dl_height * max(nrows, 1)
+     h <- if (isTRUE(input$mp_view_mode == "grouped")) {
+       input$mp_dl_height
+     } else {
+       input$mp_dl_height * max(nrows, 1)
+     }
      ggplot2::ggsave(file, plot = p, width = input$mp_dl_width, height = h,
        units = "cm", device = svglite::svglite)
    }
