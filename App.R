@@ -1,6 +1,6 @@
 # =============================================================================
 # ShinyStatR - Comprehensive Statistical Analysis App
-# Version 1.0.0
+# Version 1.1.0
 # =============================================================================
 library(shiny)
 library(shinyWidgets)
@@ -29,6 +29,7 @@ library(svglite)
 library(colourpicker)
 library(cowplot)
 library(scales)
+library(ggtext)
 library(RColorBrewer)
 
 # Suppress false positives from NSE/data-masked symbols used by ggplot2/dplyr formulas.
@@ -452,7 +453,7 @@ ui <- dashboardPage(
      hr(),
      uiOutput("sidebar_data_source"),
      div(style = "padding: 10px 15px; color: #b8c7ce; font-size: 11px;",
-       "ShinyStatR v1.0.0", br(),
+       "ShinyStatR v1.1.0", br(),
        "Developed by Dinuka Adasooriya"
      )
    )
@@ -1223,6 +1224,14 @@ ui <- dashboardPage(
                textInput("plot_title", "Title:", ""),
                textInput("plot_xlab", "X-axis Label:", ""),
                textInput("plot_ylab", "Y-axis Label:", ""),
+               helpText(
+                 style = "font-size:11px; color:#607d8b; margin-top:-4px; margin-bottom:8px;",
+                 "HTML markup supported: ",
+                 tags$code("<b>bold</b>"), ", ",
+                 tags$code("<i>italic</i>"), ", ",
+                 tags$code("<sup>sup</sup>"), ", ",
+                 tags$code("<sub>sub</sub>")
+               ),
                sliderInput("plot_title_size", "Title Font Size:",
                  min = 8, max = 30, value = 16, step = 1),
                sliderInput("plot_axis_title_size", "Axis Title Font Size:",
@@ -1246,7 +1255,8 @@ ui <- dashboardPage(
                  ), selected = "classic"),
                checkboxInput("plot_show_legend", "Show Legend", TRUE),
                checkboxInput("plot_coord_flip", "Flip Coordinates", FALSE),
-               checkboxInput("plot_underline_title", "Underline Title", FALSE)
+               checkboxInput("plot_underline_title", "Underline Title", FALSE),
+               uiOutput("plot_group_labels_ui")
              ),
 
              tags$details(class = "cfg-section",
@@ -1344,7 +1354,7 @@ ui <- dashboardPage(
            div(class = "section-header", icon("info-circle"), " About ShinyStatR"),
            div(class = "stat-card",
              h3(icon("chart-bar"), " ShinyStatR",
-               tags$small(" v1.0.0", style = "color: #95a5a6;")),
+               tags$small(" v1.1.0", style = "color: #95a5a6;")),
              p(style = "font-size: 15px; line-height: 1.7;",
                "ShinyStatR is a comprehensive, web-based statistical analysis tool built ",
                "with R and Shiny. It provides an intuitive interface for performing a wide ",
@@ -1402,7 +1412,8 @@ ui <- dashboardPage(
                    tags$li(code("svglite")),
                    tags$li(code("RColorBrewer")),
                    tags$li(code("cowplot")),
-                   tags$li(code("scales"))
+                   tags$li(code("scales")),
+                   tags$li(code("ggtext"))
                  )
                )
              ),
@@ -1525,6 +1536,7 @@ ui <- dashboardPage(
              tags$details(class = "cfg-section", open = "open",
                tags$summary("Data mapping & plot type"),
                uiOutput("mp_param_selector_ui"),
+               uiOutput("mp_group_selector_ui"),
                uiOutput("mp_group_order_ui"),
                radioButtons("mp_view_mode", "Plot Layout:",
                  choices = c("Separate plots (one per parameter)" = "separate",
@@ -1597,19 +1609,27 @@ ui <- dashboardPage(
 
              tags$details(class = "cfg-section",
                tags$summary("Layout & Labels"),
-               textInput("mp_title", "Title:", ""),
                textInput("mp_xlab", "X-axis Label:", ""),
                textInput("mp_ylab", "Y-axis Label:", ""),
+               helpText(
+                 style = "font-size:11px; color:#607d8b; margin-top:-4px; margin-bottom:8px;",
+                 "HTML markup supported: ",
+                 tags$code("<b>bold</b>"), ", ",
+                 tags$code("<i>italic</i>"), ", ",
+                 tags$code("<sup>sup</sup>"), ", ",
+                 tags$code("<sub>sub</sub>")
+               ),
                sliderInput("mp_title_size", "Title Font Size:",
-                 min = 8, max = 30, value = 16, step = 1),
+                 min = 8, max = 28, value = 16, step = 1),
+               checkboxInput("mp_title_bold", "Bold Title", FALSE),
+               checkboxInput("mp_title_italic", "Italic Title", FALSE),
+               checkboxInput("mp_underline_title", "Underline Title", FALSE),
                sliderInput("mp_axis_title_size", "Axis Title Font Size:",
                  min = 8, max = 24, value = 14, step = 1),
                sliderInput("mp_axis_text_size", "Axis Text Font Size:",
                  min = 6, max = 20, value = 12, step = 1),
                sliderInput("mp_legend_size", "Legend Font Size:",
                  min = 6, max = 20, value = 11, step = 1),
-               checkboxInput("mp_title_bold", "Bold Title", TRUE),
-               checkboxInput("mp_title_italic", "Italic Title", FALSE),
                checkboxInput("mp_axis_title_bold", "Bold Axis Titles", FALSE),
                checkboxInput("mp_axis_title_italic", "Italic Axis Titles", FALSE),
                selectInput("mp_theme", "Theme:",
@@ -1623,7 +1643,24 @@ ui <- dashboardPage(
                  ), selected = "classic"),
                checkboxInput("mp_show_legend", "Show Legend", TRUE),
                checkboxInput("mp_coord_flip", "Flip Coordinates", FALSE),
-               checkboxInput("mp_underline_title", "Underline Title", FALSE)
+               uiOutput("mp_group_labels_ui")
+             ),
+
+             tags$details(class = "cfg-section",
+               tags$summary("Per-Parameter Labels"),
+               helpText(style = "font-size:11px; color:#607d8b; margin-bottom:6px;",
+                 "Set custom title and Y-axis label for each parameter.",
+                 "Select a parameter, edit labels, then click Apply.",
+                 "HTML markup is supported."),
+               uiOutput("mp_param_label_selector_ui"),
+               textInput("mp_pp_title", "Parameter Title:", ""),
+               textInput("mp_pp_ylab", "Parameter Y-axis Label:", ""),
+               actionButton("mp_pp_apply", "Apply",
+                 icon = icon("check"), class = "btn-primary btn-sm"),
+               actionButton("mp_pp_clear_all", "Clear All",
+                 icon = icon("eraser"), class = "btn-default btn-sm",
+                 style = "margin-left:5px;"),
+               uiOutput("mp_pp_status")
              ),
 
              tags$details(class = "cfg-section",
@@ -1768,7 +1805,8 @@ server <- function(input, output, session) {
   data_source_detail = NULL, # extra info (e.g. filename)
   mp_data_source = NULL,     # "paste" or "file" for multi-parameter loader
   mp_data_detail = NULL,     # descriptive detail (e.g. filename)
-  mp_configured = FALSE      # TRUE after column config is successfully applied
+  mp_configured = FALSE,     # TRUE after column config is successfully applied
+  mp_param_labels = list()   # per-parameter labels: list(param = list(title=, ylab=))
  )
  
  # --- Sidebar data source indicator ------------------------------------------
@@ -3447,6 +3485,7 @@ validate_min_sample_pair <- function(x, y, min_n, label) {
    test <- input$multi_test
    
    tryCatch({
+     result <- NULL
      test_name <- ""
      extra <- ""
      
@@ -4350,12 +4389,24 @@ validate_min_sample_pair <- function(x, y, min_n, label) {
      }
    }
    
+   # === Compute group label overrides (used for x-ticks, legend, fills) ===
+   grp_labels <- NULL
+   if (!is.null(rv$group_names) && length(rv$group_names) > 0 &&
+       !(pt %in% c("histogram", "density", "qq"))) {
+     grp_labels <- sapply(seq_along(rv$group_names), function(i) {
+       val <- input[[paste0("plot_grp_label_", i)]]
+       if (!is.null(val) && nzchar(val)) val else rv$group_names[i]
+     })
+     names(grp_labels) <- rv$group_names
+   }
+   
    # === Non-grouped fill/color override ===
    if (!input$plot_use_group_colors &&
        !(pt %in% c("bar", "bar_sd", "mean_dot", "histogram", "density"))) {
      p <- p +
        scale_fill_manual(values = rep(input$plot_fill_color,
-         length(unique(df$group))))
+         length(unique(df$group))),
+         labels = if (!is.null(grp_labels)) grp_labels else waiver())
    }
    
    # === Color palette (fill only — border handled per-geom) ===
@@ -4368,11 +4419,13 @@ validate_min_sample_pair <- function(x, y, min_n, label) {
          val <- input[[paste0("custom_col_", i)]]
          if (is.null(val)) "#3c8dbc" else val
        })
-       p <- p + scale_fill_manual(values = custom_cols)
+       p <- p + scale_fill_manual(values = custom_cols,
+         labels = if (!is.null(grp_labels)) grp_labels else waiver())
      } else {
        pal_colors <- get_palette_colors(pal, n_groups)
        if (!is.null(pal_colors)) {
-         p <- p + scale_fill_manual(values = pal_colors)
+         p <- p + scale_fill_manual(values = pal_colors,
+           labels = if (!is.null(grp_labels)) grp_labels else waiver())
        }
      }
    }
@@ -4412,8 +4465,8 @@ validate_min_sample_pair <- function(x, y, min_n, label) {
    }
    
    # === Significance bars ===
-   # All plot types now use raw df with aes(x=group, y=value), so
-   # stat_compare_means inherits correct data and mapping.
+   # Uses mp_compute_pvalue / mp_compute_pvalue_multi for consistent p-values
+   # across bracket bars and text annotation styles.
    if (input$plot_show_signif &&
        !(pt %in% c("histogram", "density", "qq"))) {
      tryCatch({
@@ -4422,45 +4475,53 @@ validate_min_sample_pair <- function(x, y, min_n, label) {
        
        # Skip disabled header selections
        if (!is.null(method) && !grepl("^header_", method)) {
-         scm_method <- switch(method,
+         # Map main-plot method names to mp_compute_pvalue method names
+         mp_method <- switch(method,
            "t.test.pooled" = "t.test",
-           "t.test"        = "t.test",
+           "t.test"        = "welch",
            "wilcox.test"   = "wilcox.test",
-           "anova"         = "anova",
-           "kruskal.test"  = "kruskal.test",
-           "t.test"
+           NULL
          )
          
-         if (scm_method %in% c("t.test", "wilcox.test")) {
+         if (!is.null(mp_method)) {
            groups <- levels(df$group)
            if (length(groups) >= 2) {
              comps <- combn(groups, 2, simplify = FALSE)
-             if (method == "t.test.pooled") {
-               p <- p + stat_compare_means(
-                 method = scm_method,
-                 comparisons = comps,
-                 label = label,
-                 step.increase = input$plot_signif_step,
-                 size = input$plot_signif_text_size,
-                 method.args = list(var.equal = TRUE)
-               )
-             } else {
-               p <- p + stat_compare_means(
-                 method = scm_method,
-                 comparisons = comps,
-                 label = label,
-                 step.increase = input$plot_signif_step,
-                 size = input$plot_signif_text_size
-               )
-             }
+             # Compute p-values & labels for each comparison
+             annotations <- sapply(comps, function(pair) {
+               g1 <- df$value[df$group == pair[1]]
+               g2 <- df$value[df$group == pair[2]]
+               pv <- mp_compute_pvalue(g1, g2, mp_method)
+               mp_format_p_label(pv, label)
+             })
+             # Compute y positions for brackets
+             y_max <- max(df$value, na.rm = TRUE)
+             y_range <- diff(range(df$value, na.rm = TRUE))
+             y_start <- y_max + y_range * 0.05
+             y_positions <- y_start + seq(0, length(comps) - 1) * y_range * input$plot_signif_step
+             
+             p <- p + ggsignif::geom_signif(
+               comparisons = comps,
+               annotations = annotations,
+               y_position = y_positions,
+               textsize = input$plot_signif_text_size,
+               vjust = -0.2,
+               tip_length = 0.02
+             )
            }
-         } else {
-           p <- p + stat_compare_means(
-             method = scm_method,
-             label = label,
-             label.y.npc = "top",
-             size = input$plot_signif_text_size
-           )
+         } else if (method %in% c("anova", "kruskal.test")) {
+           # Multi-group: single overall annotation
+           mp_multi_method <- switch(method,
+             "anova" = "anova", "kruskal.test" = "kruskal", method)
+           pv <- mp_compute_pvalue_multi(df$value, df$group, mp_multi_method)
+           p_label <- if (!is.na(pv)) mp_format_p_label(pv, label) else ""
+           if (nzchar(p_label)) {
+             y_pos <- max(df$value, na.rm = TRUE) +
+               diff(range(df$value, na.rm = TRUE)) * 0.08
+             p <- p + annotate("text", x = Inf, y = y_pos, label = p_label,
+                               hjust = 1.1, size = input$plot_signif_text_size,
+                               fontface = "bold", color = "#333333")
+           }
          }
        }
      }, error = function(e) {
@@ -4474,6 +4535,11 @@ validate_min_sample_pair <- function(x, y, min_n, label) {
    ylab_text <- if (input$plot_ylab != "") input$plot_ylab else "Value"
    
    p <- p + labs(title = title_text, x = xlab_text, y = ylab_text)
+   
+   # === Group label overrides (x-axis ticks) ===
+   if (!is.null(grp_labels)) {
+     p <- p + scale_x_discrete(labels = grp_labels)
+   }
    
    # === Theme ===
    base_theme <- switch(input$plot_theme,
@@ -4506,14 +4572,17 @@ validate_min_sample_pair <- function(x, y, min_n, label) {
    
    p <- p + base_theme +
      theme(
-       plot.title = element_text(
+       plot.title = element_markdown(
          size = input$plot_title_size, face = title_face,
          hjust = 0.5),
-       axis.title = element_text(
+       axis.title.x = element_markdown(
          size = input$plot_axis_title_size, face = axis_title_face),
-       axis.text = element_text(size = input$plot_axis_text_size),
-       legend.text = element_text(size = input$plot_legend_size),
-       legend.title = element_text(size = input$plot_legend_size + 1),
+       axis.title.y = element_markdown(
+         size = input$plot_axis_title_size, face = axis_title_face),
+       axis.text.x = element_markdown(size = input$plot_axis_text_size),
+       axis.text.y = element_markdown(size = input$plot_axis_text_size),
+       legend.text = element_markdown(size = input$plot_legend_size),
+       legend.title = element_markdown(size = input$plot_legend_size + 1),
        panel.background = element_rect(fill = input$plot_bg_color),
        plot.background = element_rect(fill = input$plot_bg_color,
          color = NA)
@@ -4522,11 +4591,10 @@ validate_min_sample_pair <- function(x, y, min_n, label) {
    # Underline title
    if (input$plot_underline_title && !is.null(title_text)) {
      p <- p + theme(
-       plot.title = element_text(
+       plot.title = element_markdown(
          size = input$plot_title_size, face = title_face,
          hjust = 0.5,
          margin = margin(b = 5),
-         # Simulate underline with bottom border
          lineheight = 1.2
        )
      )
@@ -4591,6 +4659,44 @@ validate_min_sample_pair <- function(x, y, min_n, label) {
    } else NULL
  }
  
+ # -----------------------------------------------------------------------
+ # Group label overrides (Plots tab — allows HTML markup in tick labels)
+ # -----------------------------------------------------------------------
+ output$plot_group_labels_ui <- renderUI({
+   gnames <- rv$group_names
+   if (is.null(gnames) || length(gnames) == 0) return(NULL)
+   tagList(
+     hr(),
+     tags$label(style = "font-weight:700; font-size:13px;", "Group Display Labels"),
+     helpText(style = "font-size:11px; color:#607d8b; margin-top:2px; margin-bottom:6px;",
+       "Override x-axis tick labels. HTML markup supported."),
+     lapply(seq_along(gnames), function(i) {
+       textInput(paste0("plot_grp_label_", i),
+         label = paste0("Group ", i, " (", gnames[i], "):"),
+         value = gnames[i])
+     })
+   )
+ })
+
+ # MP tab group label overrides
+ output$mp_group_labels_ui <- renderUI({
+   df <- mp_data()
+   grp_levels <- mp_grp_levels()
+   if (is.null(df) || is.null(grp_levels) || length(grp_levels) == 0) return(NULL)
+   tagList(
+     hr(),
+     tags$label(style = "font-weight:700; font-size:13px;", "Group Display Labels"),
+     helpText(style = "font-size:11px; color:#607d8b; margin-top:2px; margin-bottom:6px;",
+       "Override x-axis group tick labels. HTML markup supported",
+       "(e.g. <b>Treatment</b> for bold)."),
+     lapply(seq_along(grp_levels), function(i) {
+       textInput(paste0("mp_grp_label_", i),
+         label = paste0("Group ", i, " (", grp_levels[i], "):"),
+         value = grp_levels[i])
+     })
+   )
+ })
+
  # -----------------------------------------------------------------------
  # Palette preview swatches
  # -----------------------------------------------------------------------
@@ -5166,9 +5272,28 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
      choices = params, selected = params, inline = TRUE)
  })
  
+ # --- Dynamic UI: group selector (when >2 groups) ----------------------------
+ output$mp_group_selector_ui <- renderUI({
+   grps <- mp_groups()
+   if (is.null(grps) || length(grps) <= 2) return(NULL)
+   checkboxGroupInput("mp_sel_groups", "Groups to display:",
+     choices = grps, selected = grps, inline = TRUE)
+ })
+
+ # --- Helper: currently selected groups (respects selector when >2 groups) ----
+ mp_active_groups <- reactive({
+   all_grps <- mp_groups()
+   if (is.null(all_grps)) return(NULL)
+   if (length(all_grps) <= 2) return(all_grps)
+   sel <- input$mp_sel_groups
+   if (is.null(sel) || length(sel) == 0) return(all_grps)
+   # Preserve original order
+   all_grps[all_grps %in% sel]
+ })
+
  # --- Dynamic UI: group order selector ----------------------------------------
  output$mp_group_order_ui <- renderUI({
-   grps <- mp_groups()
+   grps <- mp_active_groups()
    if (is.null(grps) || length(grps) < 2) return(NULL)
    opt1 <- paste(grps, collapse = ", ")
    opt2 <- paste(rev(grps), collapse = ", ")
@@ -5181,8 +5306,13 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
  # --- Parse current group levels from selector --------------------------------
  mp_grp_levels <- reactive({
    go <- input$mp_group_order
-   if (is.null(go) || !nzchar(go)) return(mp_groups())
-   strsplit(go, "\\|\\|\\|")[[1]]
+   active <- mp_active_groups()
+   if (is.null(go) || !nzchar(go)) return(active)
+   parsed <- strsplit(go, "\\|\\|\\|")[[1]]
+   # Ensure only currently selected groups are included
+   if (!is.null(active)) parsed <- parsed[parsed %in% active]
+   if (length(parsed) == 0) return(active)
+   parsed
  })
  
  # --- Build individual parameter plot -----------------------------------------
@@ -5267,6 +5397,55 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
    }, error = function(e) NA_real_)
  }
 
+ # --- Per-parameter label selector UI (MP tab) --------------------------------
+ output$mp_param_label_selector_ui <- renderUI({
+   params <- input$mp_sel_params
+   if (is.null(params) || length(params) == 0)
+     return(helpText("Select parameters first."))
+   selectInput("mp_pp_param", "Parameter:",
+     choices = params, selected = params[1])
+ })
+
+ # When user selects a parameter, populate the text inputs with stored values
+ observeEvent(input$mp_pp_param, {
+   param <- input$mp_pp_param
+   if (is.null(param)) return()
+   stored <- rv$mp_param_labels[[param]]
+   updateTextInput(session, "mp_pp_title",
+     value = if (!is.null(stored$title)) stored$title else "")
+   updateTextInput(session, "mp_pp_ylab",
+     value = if (!is.null(stored$ylab)) stored$ylab else "")
+ })
+
+ # Apply button: store per-param labels
+ observeEvent(input$mp_pp_apply, {
+   param <- input$mp_pp_param
+   if (is.null(param) || !nzchar(param)) return()
+   rv$mp_param_labels[[param]] <- list(
+     title = input$mp_pp_title,
+     ylab = input$mp_pp_ylab
+   )
+ })
+
+ # Clear all per-param labels
+ observeEvent(input$mp_pp_clear_all, {
+   rv$mp_param_labels <- list()
+   updateTextInput(session, "mp_pp_title", value = "")
+   updateTextInput(session, "mp_pp_ylab", value = "")
+ })
+
+ # Status display: show which parameters have custom labels
+ output$mp_pp_status <- renderUI({
+   labels <- rv$mp_param_labels
+   configured <- names(labels)[sapply(labels, function(l) {
+     nzchar(l$title) || nzchar(l$ylab)
+   })]
+   if (length(configured) == 0) return(NULL)
+   helpText(style = "font-size:10px; color:#1f8b5f; margin-top:6px;",
+     icon("check-circle"),
+     paste("Custom labels set for:", paste(configured, collapse = ", ")))
+ })
+
  # --- Format p-value for plot annotation ------------------------------------
  mp_format_p_label <- function(p_val, style = "p.signif") {
    if (is.na(p_val)) return("")
@@ -5303,7 +5482,8 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
                                 signif_step = 0.05, signif_text_size = 3.5,
                                 custom_colors = NULL,
                                 whisker_type = "default",
-                                signif_style = "text") {
+                                signif_style = "text",
+                                grp_labels = NULL) {
    # Validate param exists in df
    if (!param %in% colnames(df)) {
      return(ggplot() + theme_void() + labs(title = paste(param, "(column not found)")))
@@ -5312,7 +5492,7 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
    colnames(sub)[3] <- "value"
    sub$value <- suppressWarnings(as.numeric(sub$value))
    sub$Group <- factor(sub$Group, levels = grp_levels)
-   sub <- sub[!is.na(sub$value), ]
+   sub <- sub[!is.na(sub$value) & !is.na(sub$Group), ]
    if (nrow(sub) == 0) return(ggplot() + theme_void() + labs(title = paste(param, "(no data)")))
    
    n_grps <- length(grp_levels)
@@ -5330,7 +5510,12 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
    use_stat_whisker <- whisker_type %in% c("percentile", "sd")
    
    p <- ggplot(sub, aes(x = Group, y = value, fill = Group)) +
-     scale_fill_manual(values = cols)
+     scale_fill_manual(values = cols,
+       labels = if (!is.null(grp_labels)) grp_labels else waiver())
+   
+   if (!is.null(grp_labels)) {
+     p <- p + scale_x_discrete(labels = grp_labels)
+   }
    
    if (plot_type == "box") {
      if (use_stat_whisker) {
@@ -5428,24 +5613,27 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
      ttype <- mp_test_type(test_method)
      
      if (signif_style == "bars" && ttype == "two_group" && n_grps >= 2) {
-       # Bracket bar style (like regular plots tab)
+       # Bracket bar style using geom_signif with manually computed p-values
        tryCatch({
          comps <- combn(grp_levels, 2, simplify = FALSE)
-         # Map test method to stat_compare_means method
-         scm_method <- switch(test_method,
-           "t.test" = "t.test", "welch" = "t.test",
-           "wilcox.test" = "wilcox.test",
-           "paired_t" = "t.test", "wilcoxon_sr" = "wilcox.test",
-           "ks_two" = "wilcox.test", "f_test" = "t.test",
-           "t.test")
-         method_args <- if (test_method == "t.test") list(var.equal = TRUE) else list()
-         p <- p + stat_compare_means(
-           method = scm_method,
+         annotations <- sapply(comps, function(pair) {
+           g1 <- sub$value[sub$Group == pair[1]]
+           g2 <- sub$value[sub$Group == pair[2]]
+           pv <- mp_compute_pvalue(g1, g2, test_method)
+           mp_format_p_label(pv, signif_label)
+         })
+         y_max <- max(sub$value, na.rm = TRUE)
+         y_range <- diff(range(sub$value, na.rm = TRUE))
+         y_start <- y_max + y_range * 0.05
+         y_positions <- y_start + seq(0, length(comps) - 1) * y_range * signif_step
+         
+         p <- p + ggsignif::geom_signif(
            comparisons = comps,
-           label = signif_label,
-           step.increase = signif_step,
-           size = signif_text_size,
-           method.args = method_args
+           annotations = annotations,
+           y_position = y_positions,
+           textsize = signif_text_size,
+           vjust = -0.2,
+           tip_length = 0.02
          )
        }, error = function(e) {
          message("Bracket bar annotation error: ", e$message)
@@ -5516,11 +5704,13 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
    p <- p + theme_fn() +
      labs(title = plot_title, x = xl, y = yl) +
      theme(
-       plot.title = element_text(face = title_face, size = title_size, hjust = 0.5),
-       axis.text = element_text(size = axis_text_size),
-       axis.title = element_text(size = axis_title_size, face = axis_title_face),
-       legend.text = element_text(size = legend_size),
-       legend.title = element_text(size = legend_size + 1),
+       plot.title = element_markdown(face = title_face, size = title_size, hjust = 0.5),
+       axis.text.x = element_markdown(size = axis_text_size),
+       axis.text.y = element_markdown(size = axis_text_size),
+       axis.title.x = element_markdown(size = axis_title_size, face = axis_title_face),
+       axis.title.y = element_markdown(size = axis_title_size, face = axis_title_face),
+       legend.text = element_markdown(size = legend_size),
+       legend.title = element_markdown(size = legend_size + 1),
        panel.background = element_rect(fill = bg_color),
        plot.background = element_rect(fill = bg_color, color = NA)
      )
@@ -5556,10 +5746,20 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
                                      signif_step = 0.05, signif_text_size = 3.5,
                                      custom_colors = NULL,
                                      whisker_type = "default",
-                                     signif_style = "text") {
+                                     signif_style = "text",
+                                     param_labels = NULL,
+                                     grp_labels = NULL) {
    # Validate params exist in df
    params <- params[params %in% colnames(df)]
    if (length(params) == 0) return(ggplot() + theme_void() + labs(title = "No valid parameters"))
+   # Build param display label lookup
+   plbl <- setNames(params, params)
+   if (!is.null(param_labels)) {
+     for (pp in names(param_labels)) {
+       ttl <- param_labels[[pp]]$title
+       if (!is.null(ttl) && nzchar(ttl)) plbl[pp] <- ttl
+     }
+   }
    # Melt to long format
    sub_df <- df[, c("Sample", "Group", params), drop = FALSE]
    # Ensure all param cols are numeric
@@ -5569,7 +5769,7 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
                                 names_to = "Parameter", values_to = "value")
    long$Group <- factor(long$Group, levels = grp_levels)
    long$Parameter <- factor(long$Parameter, levels = params)
-   long <- long[!is.na(long$value), ]
+   long <- long[!is.na(long$value) & !is.na(long$Group), ]
    if (nrow(long) == 0) return(ggplot() + theme_void() + labs(title = "No data"))
    
    n_grps <- length(grp_levels)
@@ -5587,7 +5787,12 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
    use_stat_whisker <- whisker_type %in% c("percentile", "sd")
    
    p <- ggplot(long, aes(x = Group, y = value, fill = Group)) +
-     scale_fill_manual(values = cols)
+     scale_fill_manual(values = cols,
+       labels = if (!is.null(grp_labels)) grp_labels else waiver())
+   
+   if (!is.null(grp_labels)) {
+     p <- p + scale_x_discrete(labels = grp_labels)
+   }
    
    if (plot_type == "box") {
      if (use_stat_whisker) {
@@ -5685,24 +5890,41 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
      ttype <- mp_test_type(test_method)
      
      if (signif_style == "bars" && ttype == "two_group" && n_grps >= 2) {
-       # Bracket bar style per facet
+       # Bracket bar style per facet using geom_signif with manual p-values
        tryCatch({
          comps <- combn(grp_levels, 2, simplify = FALSE)
-         scm_method <- switch(test_method,
-           "t.test" = "t.test", "welch" = "t.test",
-           "wilcox.test" = "wilcox.test",
-           "paired_t" = "t.test", "wilcoxon_sr" = "wilcox.test",
-           "ks_two" = "wilcox.test", "f_test" = "t.test",
-           "t.test")
-         method_args <- if (test_method == "t.test") list(var.equal = TRUE) else list()
-         p <- p + stat_compare_means(
-           method = scm_method,
-           comparisons = comps,
-           label = signif_label,
-           step.increase = signif_step,
-           size = signif_text_size,
-           method.args = method_args
-         )
+         # Build per-parameter annotation data for geom_signif
+         signif_layers <- lapply(params, function(param) {
+           sub_p <- long[long$Parameter == param, ]
+           annotations <- sapply(comps, function(pair) {
+             g1 <- sub_p$value[sub_p$Group == pair[1]]
+             g2 <- sub_p$value[sub_p$Group == pair[2]]
+             pv <- mp_compute_pvalue(g1, g2, test_method)
+             mp_format_p_label(pv, signif_label)
+           })
+           y_max <- max(sub_p$value, na.rm = TRUE)
+           y_range <- diff(range(sub_p$value, na.rm = TRUE))
+           if (y_range == 0) y_range <- abs(y_max) * 0.1 + 1
+           y_start <- y_max + y_range * 0.05
+           y_positions <- y_start + seq(0, length(comps) - 1) * y_range * signif_step
+           
+           sub_signif <- data.frame(
+             Parameter = param,
+             stringsAsFactors = FALSE
+           )
+           sub_signif$Parameter <- factor(sub_signif$Parameter, levels = params)
+           
+           ggsignif::geom_signif(
+             data = sub_p,
+             comparisons = comps,
+             annotations = annotations,
+             y_position = y_positions,
+             textsize = signif_text_size,
+             vjust = -0.2,
+             tip_length = 0.02
+           )
+         })
+         for (layer in signif_layers) p <- p + layer
        }, error = function(e) {
          message("Bracket bar annotation error: ", e$message)
        })
@@ -5747,7 +5969,8 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
    }
    # Facet
    scales_arg <- if (free_y) "free_y" else "fixed"
-   p <- p + facet_wrap(~ Parameter, scales = scales_arg)
+   p <- p + facet_wrap(~ Parameter, scales = scales_arg,
+     labeller = labeller(Parameter = plbl))
    
    # Y-axis limits / coord_flip (only if not free)
    if (custom_ylim && !is.na(ymin) && !is.na(ymax) && !free_y) {
@@ -5783,11 +6006,13 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
    p <- p + theme_fn() +
      labs(title = plot_title, x = xl, y = yl) +
      theme(
-       plot.title = element_text(face = title_face, size = title_size, hjust = 0.5),
-       strip.text = element_text(face = "bold", size = axis_text_size + 1),
-       axis.text = element_text(size = axis_text_size),
-       axis.title = element_text(size = axis_title_size, face = axis_title_face),
-       legend.text = element_text(size = legend_size),
+       plot.title = element_markdown(face = title_face, size = title_size, hjust = 0.5),
+       strip.text = element_markdown(face = "bold", size = axis_text_size + 1),
+       axis.text.x = element_markdown(size = axis_text_size),
+       axis.text.y = element_markdown(size = axis_text_size),
+       axis.title.x = element_markdown(size = axis_title_size, face = axis_title_face),
+       axis.title.y = element_markdown(size = axis_title_size, face = axis_title_face),
+       legend.text = element_markdown(size = legend_size),
        legend.title = element_blank(),
        panel.background = element_rect(fill = bg_color),
        plot.background = element_rect(fill = bg_color, color = NA)
@@ -5824,11 +6049,21 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
                                     signif_step = 0.05, signif_text_size = 3.5,
                                     custom_colors = NULL,
                                     whisker_type = "default",
-                                    signif_style = "text") {
+                                    signif_style = "text",
+                                    param_labels = NULL,
+                                    grp_labels = NULL) {
    # Validate params
    params <- params[params %in% colnames(df)]
    if (length(params) == 0) return(ggplot() + theme_void() + labs(title = "No valid parameters"))
    
+   # Build param display label lookup
+   plbl <- setNames(params, params)
+   if (!is.null(param_labels)) {
+     for (pp in names(param_labels)) {
+       ttl <- param_labels[[pp]]$title
+       if (!is.null(ttl) && nzchar(ttl)) plbl[pp] <- ttl
+     }
+   }
    # Melt to long format
    sub_df <- df[, c("Sample", "Group", params), drop = FALSE]
    for (pp in params) sub_df[[pp]] <- suppressWarnings(as.numeric(sub_df[[pp]]))
@@ -5836,7 +6071,7 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
                                 names_to = "Parameter", values_to = "value")
    long$Group <- factor(long$Group, levels = grp_levels)
    long$Parameter <- factor(long$Parameter, levels = params)
-   long <- long[!is.na(long$value), ]
+   long <- long[!is.na(long$value) & !is.na(long$Group), ]
    if (nrow(long) == 0) return(ggplot() + theme_void() + labs(title = "No data"))
    
    n_grps <- length(grp_levels)
@@ -5856,7 +6091,8 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
    
    # x = Parameter, fill = Group, dodged
    p <- ggplot(long, aes(x = Parameter, y = value, fill = Group)) +
-     scale_fill_manual(values = cols)
+     scale_fill_manual(values = cols,
+       labels = if (!is.null(grp_labels)) grp_labels else waiver())
    
    if (plot_type == "box") {
      if (use_stat_whisker) {
@@ -6040,11 +6276,14 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
      "pubr" = theme_pubr, "void" = theme_void, theme_classic)
    p <- p + theme_fn() +
      labs(title = plot_title, x = xl, y = yl) +
+     scale_x_discrete(labels = plbl) +
      theme(
-       plot.title = element_text(face = title_face, size = title_size, hjust = 0.5),
-       axis.text = element_text(size = axis_text_size),
-       axis.title = element_text(size = axis_title_size, face = axis_title_face),
-       legend.text = element_text(size = legend_size),
+       plot.title = element_markdown(face = title_face, size = title_size, hjust = 0.5),
+       axis.text.x = element_markdown(size = axis_text_size),
+       axis.text.y = element_markdown(size = axis_text_size),
+       axis.title.x = element_markdown(size = axis_title_size, face = axis_title_face),
+       axis.title.y = element_markdown(size = axis_title_size, face = axis_title_face),
+       legend.text = element_markdown(size = legend_size),
        legend.title = element_blank(),
        panel.background = element_rect(fill = bg_color),
        plot.background = element_rect(fill = bg_color, color = NA)
@@ -6084,6 +6323,21 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
    }
    
    plots <- lapply(params, function(param) {
+     pp <- rv$mp_param_labels[[param]]
+     pp_title <- if (!is.null(pp$title) && nzchar(pp$title)) pp$title else ""
+     pp_ylab <- if (!is.null(pp$ylab) && nzchar(pp$ylab)) pp$ylab else input$mp_ylab
+     
+     # Compute group label overrides
+     mp_gl <- NULL
+     if (length(grp_levels) > 0) {
+       mp_gl <- sapply(seq_along(grp_levels), function(i) {
+         val <- input[[paste0("mp_grp_label_", i)]]
+         if (!is.null(val) && nzchar(val)) val else grp_levels[i]
+       })
+       names(mp_gl) <- grp_levels
+       if (all(mp_gl == grp_levels)) mp_gl <- NULL
+     }
+     
      mp_build_one_plot(
        df = df, param = param, grp_levels = grp_levels,
        plot_type = input$mp_plot_type, palette = input$mp_palette,
@@ -6094,9 +6348,9 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
        line_width = input$mp_line_width,
        width_adj = input$mp_width_adj,
        bg_color = input$mp_bg_color,
-       title_text = "",
+       title_text = pp_title,
        xlab_text = input$mp_xlab,
-       ylab_text = input$mp_ylab,
+       ylab_text = pp_ylab,
        title_size = input$mp_title_size,
        axis_title_size = input$mp_axis_title_size,
        axis_text_size = input$mp_axis_text_size,
@@ -6119,7 +6373,8 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
        signif_text_size = if (!is.null(input$mp_signif_text_size)) input$mp_signif_text_size else 3.5,
        custom_colors = custom_cols,
        whisker_type = if (!is.null(input$mp_whisker_type)) input$mp_whisker_type else "default",
-       signif_style = if (!is.null(input$mp_signif_style)) input$mp_signif_style else "text"
+       signif_style = if (!is.null(input$mp_signif_style)) input$mp_signif_style else "text",
+       grp_labels = mp_gl
      )
    })
    names(plots) <- params
@@ -6148,6 +6403,17 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
      })
    }
    
+   # Compute group label overrides
+   mp_gl <- NULL
+   if (length(grp_levels) > 0) {
+     mp_gl <- sapply(seq_along(grp_levels), function(i) {
+       val <- input[[paste0("mp_grp_label_", i)]]
+       if (!is.null(val) && nzchar(val)) val else grp_levels[i]
+     })
+     names(mp_gl) <- grp_levels
+     if (all(mp_gl == grp_levels)) mp_gl <- NULL
+   }
+   
    mp_build_combined_plot(
      df = df, params = params, grp_levels = grp_levels,
      plot_type = input$mp_plot_type, palette = input$mp_palette,
@@ -6159,7 +6425,7 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
      line_width = input$mp_line_width,
      width_adj = input$mp_width_adj,
      bg_color = input$mp_bg_color,
-     title_text = input$mp_title,
+     title_text = "",
      xlab_text = input$mp_xlab,
      ylab_text = input$mp_ylab,
      title_size = input$mp_title_size,
@@ -6184,7 +6450,9 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
      signif_text_size = if (!is.null(input$mp_signif_text_size)) input$mp_signif_text_size else 3.5,
      custom_colors = custom_cols,
      whisker_type = if (!is.null(input$mp_whisker_type)) input$mp_whisker_type else "default",
-     signif_style = if (!is.null(input$mp_signif_style)) input$mp_signif_style else "text"
+     signif_style = if (!is.null(input$mp_signif_style)) input$mp_signif_style else "text",
+     param_labels = rv$mp_param_labels,
+     grp_labels = mp_gl
    )
  })
  
@@ -6209,6 +6477,17 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
      })
    }
    
+   # Compute group label overrides
+   mp_gl <- NULL
+   if (length(grp_levels) > 0) {
+     mp_gl <- sapply(seq_along(grp_levels), function(i) {
+       val <- input[[paste0("mp_grp_label_", i)]]
+       if (!is.null(val) && nzchar(val)) val else grp_levels[i]
+     })
+     names(mp_gl) <- grp_levels
+     if (all(mp_gl == grp_levels)) mp_gl <- NULL
+   }
+   
    mp_build_grouped_plot(
      df = df, params = params, grp_levels = grp_levels,
      plot_type = input$mp_plot_type, palette = input$mp_palette,
@@ -6220,7 +6499,7 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
      line_width = input$mp_line_width,
      width_adj = input$mp_width_adj,
      bg_color = input$mp_bg_color,
-     title_text = input$mp_title,
+     title_text = "",
      xlab_text = input$mp_xlab,
      ylab_text = input$mp_ylab,
      title_size = input$mp_title_size,
@@ -6245,7 +6524,9 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
      signif_text_size = if (!is.null(input$mp_signif_text_size)) input$mp_signif_text_size else 3.5,
      custom_colors = custom_cols,
      whisker_type = if (!is.null(input$mp_whisker_type)) input$mp_whisker_type else "default",
-     signif_style = if (!is.null(input$mp_signif_style)) input$mp_signif_style else "text"
+     signif_style = if (!is.null(input$mp_signif_style)) input$mp_signif_style else "text",
+     param_labels = rv$mp_param_labels,
+     grp_labels = mp_gl
    )
  })
  
@@ -6320,6 +6601,8 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
    params <- input$mp_sel_params
    grp_levels <- mp_grp_levels()
    if (is.null(df) || is.null(params) || is.null(grp_levels)) return(NULL)
+   # Filter data to selected groups
+   df <- df[df$Group %in% grp_levels, , drop = FALSE]
    test_method <- input$mp_test_method
    if (is.null(test_method) || test_method == "none" ||
        grepl("^header_", test_method)) return(NULL)
@@ -6600,13 +6883,17 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
      p <- mp_download_plot()
      req(p)
      n <- length(input$mp_sel_params)
+     ncols <- min(n, 3)
      nrows <- ceiling(n / 3)
-     h <- if (isTRUE(input$mp_view_mode == "grouped")) {
-       input$mp_dl_height
+     view <- input$mp_view_mode
+     if (isTRUE(view == "grouped") || isTRUE(view == "combined")) {
+       w <- input$mp_dl_width
+       h <- input$mp_dl_height
      } else {
-       input$mp_dl_height * max(nrows, 1)
+       w <- input$mp_dl_width * ncols / 2
+       h <- (input$mp_dl_height + 2) * max(nrows, 1)
      }
-     ggplot2::ggsave(file, plot = p, width = input$mp_dl_width, height = h,
+     ggplot2::ggsave(file, plot = p, width = w, height = h,
        units = "cm", dpi = input$mp_dl_dpi, device = "png")
    }
  )
@@ -6617,13 +6904,17 @@ mp_stage_raw <- function(df, source = NULL, detail = NULL) {
      p <- mp_download_plot()
      req(p)
      n <- length(input$mp_sel_params)
+     ncols <- min(n, 3)
      nrows <- ceiling(n / 3)
-     h <- if (isTRUE(input$mp_view_mode == "grouped")) {
-       input$mp_dl_height
+     view <- input$mp_view_mode
+     if (isTRUE(view == "grouped") || isTRUE(view == "combined")) {
+       w <- input$mp_dl_width
+       h <- input$mp_dl_height
      } else {
-       input$mp_dl_height * max(nrows, 1)
+       w <- input$mp_dl_width * ncols / 2
+       h <- (input$mp_dl_height + 2) * max(nrows, 1)
      }
-     ggplot2::ggsave(file, plot = p, width = input$mp_dl_width, height = h,
+     ggplot2::ggsave(file, plot = p, width = w, height = h,
        units = "cm", device = svglite::svglite)
    }
  )
