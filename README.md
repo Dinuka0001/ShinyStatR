@@ -32,13 +32,27 @@ Box, Violin, Dot (Strip), Bee Swarm, Bar (Mean±SE / Mean±SD), Box+Jitter, Viol
 
 Compare multiple numeric parameters across groups simultaneously with auto-detection of column roles, batch statistical testing, and side-by-side visualisation.
 
+- **Group selection** — when datasets contain more than two groups, selectively include or exclude groups from plots and statistical tests via an interactive checkbox selector
+
 ### Additional Features
 
 - **Flexible data input** — paste data manually or upload CSV, TXT, TSV, Excel (.xls/.xlsx)
 - **Exact p-values** for Mann-Whitney U and Wilcoxon Signed Rank (via `coin` package, matching SPSS/Prism)
 - **Publication-ready exports** — high-resolution PNG or SVG plots; CSV or Excel for statistics
 - **Custom per-group colours** with 15+ built-in palettes (including journal-style: Nature, Science, Lancet, JCO, NEJM)
+- **HTML text formatting** — use `<b>`, `<i>`, `<sup>`, `<sub>` tags in titles, axis labels, and group labels for rich-text rendering in plots (powered by `ggtext`)
+- **Group label overrides** — customise how group names appear on axes and legends without changing source data
+- **Per-parameter labels** — set individual titles and y-axis labels for each parameter in multi-parameter comparison
 - **Interactive test information panels** explaining assumptions, formulas, and interpretation for every test
+
+---
+
+## Changelog
+
+### v1.1.0
+
+- **Group selection for multi-parameter plots** — when more than two groups are present, a checkbox selector lets you choose which groups to include in plots, significance annotations, and statistical tables
+- **Formatted text support** — HTML markup (`<b>`, `<i>`, `<sup>`, `<sub>`) is rendered in plot titles, axis labels, group labels, and legends via `ggtext::element_markdown()`
 
 ---
 
@@ -55,7 +69,7 @@ install.packages(c(
   "readxl", "writexl", "dplyr", "tidyr", "purrr", "tibble",
   "car", "coin", "survival", "survminer", "pROC",
   "nortest", "multcomp", "broom", "svglite", "colourpicker",
-  "cowplot", "scales", "RColorBrewer"
+  "cowplot", "scales", "RColorBrewer", "ggtext"
 ))
 ```
 
@@ -115,6 +129,7 @@ The app is hosted on Posit Connect Cloud — no installation required:
 | `cowplot` | Plot grid layout |
 | `scales` | Colour scale utilities |
 | `RColorBrewer` | Colour palettes |
+| `ggtext` | Rich-text (HTML) rendering in plot labels |
 
 ---
 
